@@ -204,10 +204,12 @@ def shorten_role(job_title):
     return title
 
 
-def add_leads(api_key, campaign_id, leads):
-    """Add leads to campaign one at a time via v2 API."""
+def add_leads(api_key, campaign_id, leads, service=None, sheet_id=None, added_col=None, leads_to_push=None):
+    """Add leads to campaign one at a time via v2 API, writing to sheet every 10."""
     added = 0
     failed = 0
+    BATCH_SIZE = 10
+
     for i, lead in enumerate(leads):
         lead["campaign"] = campaign_id
         try:
@@ -226,8 +228,22 @@ def add_leads(api_key, campaign_id, leads):
             print(f"  Lead {i+1} error: {e}")
             failed += 1
 
-        if (i + 1) % 10 == 0:
-            print(f"  Progress: {i+1}/{len(leads)} ({added} added, {failed} failed)")
+        # Every 10 leads, mark them in the sheet
+        if (i + 1) % BATCH_SIZE == 0 or (i + 1) == len(leads):
+            batch_start = (i // BATCH_SIZE) * BATCH_SIZE
+            if service and sheet_id and added_col and leads_to_push:
+                updates = []
+                for lp in leads_to_push[batch_start:i + 1]:
+                    updates.append({
+                        "range": f"{added_col}{lp['row_num']}",
+                        "values": [["TRUE"]],
+                    })
+                if updates:
+                    service.spreadsheets().values().batchUpdate(
+                        spreadsheetId=sheet_id,
+                        body={"valueInputOption": "RAW", "data": updates},
+                    ).execute()
+            print(f"  Progress: {i+1}/{len(leads)} ({added} added, {failed} failed) → written to sheet")
 
     return added, failed
 
@@ -386,25 +402,15 @@ def main():
         campaign_id = create_campaign(api_key, args.campaign_name, accounts)
         print(f"  Campaign created: {campaign_id}")
 
-    # Add leads
-    print(f"\nAdding {len(leads_to_push)} leads to campaign...")
-    instantly_leads = [lp["lead"] for lp in leads_to_push]
-    added_count, failed_count = add_leads(api_key, campaign_id, instantly_leads)
-
-    # Update sheet — mark "Added to instantly" column
-    print(f"\nUpdating sheet...")
+    # Add leads (marks sheet every 10)
+    print(f"\nAdding {len(leads_to_push)} leads to campaign (batches of 10)...")
     added_col = chr(65 + idx_added) if idx_added < 26 else "A" + chr(65 + idx_added - 26)
-    updates = []
-    for lp in leads_to_push:
-        updates.append({
-            "range": f"{added_col}{lp['row_num']}",
-            "values": [["TRUE"]],
-        })
-
-    service.spreadsheets().values().batchUpdate(
-        spreadsheetId=sheet_id,
-        body={"valueInputOption": "RAW", "data": updates},
-    ).execute()
+    instantly_leads = [lp["lead"] for lp in leads_to_push]
+    added_count, failed_count = add_leads(
+        api_key, campaign_id, instantly_leads,
+        service=service, sheet_id=sheet_id,
+        added_col=added_col, leads_to_push=leads_to_push,
+    )
 
     # Summary
     print(f"\n{'='*50}")
@@ -415,7 +421,7 @@ def main():
     if failed_count:
         print(f"  Leads failed: {failed_count}")
     print(f"  Sending accounts: {len(accounts)}")
-    print(f"  Sheet updated: {len(updates)} rows marked")
+    print(f"  Sheet updated: {len(leads_to_push)} rows marked")
     print(f"\n  Campaign created as DRAFT — activate in Instantly when ready.")
     print(f"{'='*50}")
 

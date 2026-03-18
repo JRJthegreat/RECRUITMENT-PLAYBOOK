@@ -271,31 +271,70 @@ def main():
         print("No leads need email generation")
         sys.exit(0)
 
-    print(f"\nGenerating emails for {len(leads)} leads...\n")
+    BATCH_SIZE = 10
+    total_batches = (len(leads) + BATCH_SIZE - 1) // BATCH_SIZE
+    print(f"\nGenerating emails for {len(leads)} leads in batches of {BATCH_SIZE} ({total_batches} batches)...\n")
 
     client = anthropic.Anthropic(api_key=api_key)
     results = []
+    failed = 0
 
-    # Generate emails concurrently
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        future_to_lead = {
-            executor.submit(generate_email, client, lead): lead
-            for lead in leads
-        }
-        for future in as_completed(future_to_lead):
-            lead = future_to_lead[future]
-            body = future.result()
-            if body:
-                full_body = f"Hi {lead['first_name']},\n\n{body}"
-                results.append({
-                    "row_num": lead["row_num"],
-                    "first_name": lead["first_name"],
-                    "last_name": lead["last_name"],
-                    "body": full_body,
-                })
-                print(f"  Row {lead['row_num']}: {lead['company_name']} — done")
-            else:
-                print(f"  Row {lead['row_num']}: {lead['company_name']} — FAILED")
+    def col_letter(idx):
+        if idx < 26:
+            return chr(65 + idx)
+        return chr(64 + idx // 26) + chr(65 + idx % 26)
+
+    firstname_col = col_letter(idx_firstname)
+    lastname_col = col_letter(idx_lastname)
+    body_col = col_letter(idx_body)
+
+    for batch_num in range(total_batches):
+        batch_start = batch_num * BATCH_SIZE
+        batch = leads[batch_start:batch_start + BATCH_SIZE]
+        batch_results = []
+
+        print(f"  Batch {batch_num + 1}/{total_batches}")
+
+        # Preview mode: just generate and print, don't write
+        if args.preview > 0 and len(results) >= args.preview:
+            break
+
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            future_to_lead = {
+                executor.submit(generate_email, client, lead): lead
+                for lead in batch
+            }
+            for future in as_completed(future_to_lead):
+                lead = future_to_lead[future]
+                body = future.result()
+                if body:
+                    full_body = f"Hi {lead['first_name']},\n\n{body}"
+                    r = {
+                        "row_num": lead["row_num"],
+                        "first_name": lead["first_name"],
+                        "last_name": lead["last_name"],
+                        "body": full_body,
+                    }
+                    batch_results.append(r)
+                    results.append(r)
+                    print(f"    Row {lead['row_num']}: {lead['company_name']} — done")
+                else:
+                    print(f"    Row {lead['row_num']}: {lead['company_name']} — FAILED")
+                    failed += 1
+
+        # Write batch to sheet immediately (unless preview mode)
+        if batch_results and args.preview == 0:
+            updates = []
+            for r in batch_results:
+                updates.append({"range": f"{firstname_col}{r['row_num']}", "values": [[r["first_name"]]]})
+                updates.append({"range": f"{lastname_col}{r['row_num']}", "values": [[r["last_name"]]]})
+                updates.append({"range": f"{body_col}{r['row_num']}", "values": [[r["body"]]]})
+
+            service.spreadsheets().values().batchUpdate(
+                spreadsheetId=sheet_id,
+                body={"valueInputOption": "RAW", "data": updates},
+            ).execute()
+            print(f"    → Written to sheet. Running total: {len(results)} done, {failed} failed\n")
 
     if not results:
         print("No emails generated")
@@ -314,32 +353,6 @@ def main():
             print(f"... and {len(results) - args.preview} more")
         print("\nRun without --preview to write to sheet.")
         sys.exit(0)
-
-    # Write to sheet: First name, Last name, Body columns
-    print(f"\nWriting {len(results)} emails to sheet...")
-    firstname_col = chr(65 + idx_firstname) if idx_firstname < 26 else "A" + chr(65 + idx_firstname - 26)
-    lastname_col = chr(65 + idx_lastname) if idx_lastname < 26 else "A" + chr(65 + idx_lastname - 26)
-    body_col = chr(65 + idx_body) if idx_body < 26 else "A" + chr(65 + idx_body - 26)
-
-    updates = []
-    for r in results:
-        updates.append({
-            "range": f"{firstname_col}{r['row_num']}",
-            "values": [[r["first_name"]]],
-        })
-        updates.append({
-            "range": f"{lastname_col}{r['row_num']}",
-            "values": [[r["last_name"]]],
-        })
-        updates.append({
-            "range": f"{body_col}{r['row_num']}",
-            "values": [[r["body"]]],
-        })
-
-    service.spreadsheets().values().batchUpdate(
-        spreadsheetId=sheet_id,
-        body={"valueInputOption": "RAW", "data": updates},
-    ).execute()
 
     # Summary
     print(f"\n{'='*50}")

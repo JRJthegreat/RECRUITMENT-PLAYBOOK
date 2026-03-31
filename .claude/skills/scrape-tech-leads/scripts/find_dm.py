@@ -220,25 +220,16 @@ def determine_target_titles_perm(job_title, employee_count_str):
     )
 
 
-def determine_target_titles_contract(job_title, employee_count_str):
-    """
-    Determine DM for CONTRACT roles — always CTO first, CEO fallback.
-    Returns (title_variations, target_level, confidence, reasoning).
-    """
-    return (
-        TARGET_CTO, "cto", "high",
-        f"Contract role ({job_title}), targeting CTO/VP Engineering (feels contract hiring pain)"
-    )
 
 
-def search_linkedin_employees(apify_token, company_linkedin_url, title_variations):
-    """Find employees at a company matching target titles via Apify LinkedIn scraper."""
+def search_linkedin_leaders(apify_token, company_linkedin_url):
+    """Find all Director+ level employees at a company via Apify LinkedIn scraper."""
     url = f"{APIFY_SYNC_BASE}/{APIFY_LINKEDIN_ACTOR}/run-sync-get-dataset-items"
 
     payload = {
         "companies": [company_linkedin_url],
-        "jobTitles": title_variations[:20],  # Apify max 20 titles
-        "maxItems": 10,
+        "seniorityLevelIds": ["220", "300", "310", "320"],  # Director, VP, CXO, Owner/Partner
+        "maxItems": 8,
         "profileScraperMode": "Short ($4 per 1k)",
     }
 
@@ -405,59 +396,103 @@ def pick_best_match(candidates, title_variations):
         return best, "medium"
 
 
-def process_lead(lead, apify_token):
-    """Process a single lead: rules → Apify → match → result."""
-    tab = lead.get("tab", "Perm")
+def rank_candidate_for_lead(candidate, preferred_titles, fallback_order):
+    """
+    Score a candidate based on how well they match the preferred DM profile.
+    Lower score = better match. Returns (score, candidate).
 
-    if "contract" in tab.lower():
-        titles, level, base_confidence, reasoning = determine_target_titles_contract(
-            lead["job_title"], lead["employee_count"]
-        )
-    else:
-        titles, level, base_confidence, reasoning = determine_target_titles_perm(
-            lead["job_title"], lead["employee_count"]
-        )
+    preferred_titles: primary target titles (e.g. TARGET_CTO)
+    fallback_order: list of (title_list, penalty) tuples for fallback tiers
+    """
+    import re
+    title = get_candidate_title(candidate)
+    if not is_leadership_title(title):
+        return 9999  # Not a valid DM
+
+    # Check primary target
+    for i, t in enumerate(preferred_titles):
+        if re.search(r'\b' + re.escape(t) + r'\b', title, re.IGNORECASE):
+            return i  # Lower = better
+
+    # Check fallback tiers
+    base = len(preferred_titles)
+    for tier_titles, penalty in fallback_order:
+        for t in tier_titles:
+            if re.search(r'\b' + re.escape(t) + r'\b', title, re.IGNORECASE):
+                return base + penalty
+
+    # Is a leader (passed is_leadership_title) but no exact match — still usable
+    return 500
+
+
+def process_lead(lead, apify_token):
+    """Process a single lead: single Apify call for all leaders → pick best match locally."""
+    tab = lead.get("tab", "Data")
+
+    # Determine preferred target based on rules
+    titles, level, base_confidence, reasoning = determine_target_titles_perm(
+        lead["job_title"], lead["employee_count"]
+    )
+
+    # Build fallback order: primary target → CEO → CTO → VP → Director → HR
+    fallback_order = []
+    if level != "ceo":
+        fallback_order.append((TARGET_CEO, 100))
+    if level != "cto":
+        fallback_order.append((TARGET_CTO, 200))
+    if level not in ("vp_eng", "vp_or_director"):
+        fallback_order.append((TARGET_VP_ENG, 300))
+    if level not in ("director_or_manager", "vp_or_director"):
+        fallback_order.append((TARGET_DIRECTOR_ENG, 400))
+    fallback_order.append((TARGET_HIRING, 600))
 
     candidates = []
     method = "linkedin"
 
     if lead["company_linkedin_url"]:
-        candidates = search_linkedin_employees(
-            apify_token, lead["company_linkedin_url"], titles
+        candidates = search_linkedin_leaders(
+            apify_token, lead["company_linkedin_url"]
         )
     else:
         method = "no_linkedin_url"
 
-    match, match_confidence = pick_best_match(candidates, titles)
+    # Score all candidates and pick the best
+    match = None
+    confidence = "low"
 
-    # CTO → CEO fallback for contract tabs and unknown-size perm leads
-    needs_ceo_fallback = (
-        "contract" in tab.lower()
-        or (level == "cto" and "contract" not in tab.lower())  # unknown-size perm
-    )
-    if needs_ceo_fallback and not match and lead["company_linkedin_url"]:
-        reasoning += " | CTO not found, falling back to CEO/Founder"
-        candidates = search_linkedin_employees(
-            apify_token, lead["company_linkedin_url"], TARGET_CEO
-        )
-        match, match_confidence = pick_best_match(candidates, TARGET_CEO)
-        if match:
-            method = "linkedin (CEO fallback)"
+    if candidates:
+        scored = []
+        for c in candidates:
+            score = rank_candidate_for_lead(c, titles, fallback_order)
+            if score < 9999:
+                scored.append((score, c))
 
-    # HR/Hiring fallback — if tech + CEO both missed, try Head of HR / Talent
-    if not match and lead["company_linkedin_url"]:
-        reasoning += " | Tech/CEO not found, falling back to HR/Hiring lead"
-        candidates = search_linkedin_employees(
-            apify_token, lead["company_linkedin_url"], TARGET_HIRING
-        )
-        match, match_confidence = pick_best_match(candidates, TARGET_HIRING)
-        if match:
-            method = "linkedin (HR fallback)"
-            match_confidence = "medium"  # HR contact is less ideal than tech DM
+        if scored:
+            scored.sort(key=lambda x: x[0])
+            best_score, match = scored[0]
+
+            if best_score < len(titles):
+                confidence = "high"
+                reasoning += f" | Primary match (score {best_score})"
+            elif best_score < 200:
+                confidence = "high"
+                reasoning += f" | CEO fallback match"
+            elif best_score < 400:
+                confidence = "medium"
+                reasoning += f" | CTO/VP fallback match"
+            elif best_score < 600:
+                confidence = "medium"
+                reasoning += f" | Director fallback match"
+            elif best_score < 700:
+                confidence = "medium"
+                reasoning += f" | HR fallback match"
+            else:
+                confidence = "medium"
+                reasoning += f" | Leadership match (non-exact)"
 
     # Combine base confidence with match confidence
     conf_order = {"high": 3, "medium": 2, "low": 1}
-    final_confidence = min(conf_order.get(base_confidence, 2), conf_order.get(match_confidence, 1))
+    final_confidence = min(conf_order.get(base_confidence, 2), conf_order.get(confidence, 1))
     conf_labels = {3: "high", 2: "medium", 1: "low"}
     confidence = conf_labels[final_confidence]
 
@@ -565,10 +600,10 @@ def read_tab_leads(service, sheet_id, tab_name, limit=0):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Find decision makers for tech job postings (Perm + Contract)")
+    parser = argparse.ArgumentParser(description="Find decision makers for tech job postings")
     parser.add_argument("--sheet_url", required=True, help="Google Sheets URL or ID")
-    parser.add_argument("--tab", default="both",
-                        help="Tab(s) to process: 'perm', 'contract', 'both', or comma-separated custom names e.g. 'Perm (High-Pay),Contract (High-Pay)'")
+    parser.add_argument("--tab", default="Data",
+                        help="Tab to process (default: Data), or comma-separated names")
     parser.add_argument("--limit", type=int, default=0, help="Max leads to process per tab (0 = all)")
     parser.add_argument("--dry_run", action="store_true", help="Preview rules output without calling Apify")
     args = parser.parse_args()
@@ -589,17 +624,7 @@ def main():
     service = get_google_service(token_path)
 
     # Determine which tabs to process
-    tabs_to_process = []
-    tab_arg = args.tab.strip().lower()
-    if tab_arg == "both":
-        tabs_to_process = ["Perm", "Contract"]
-    elif tab_arg == "perm":
-        tabs_to_process = ["Perm"]
-    elif tab_arg == "contract":
-        tabs_to_process = ["Contract"]
-    else:
-        # Custom comma-separated tab names
-        tabs_to_process = [t.strip() for t in args.tab.split(",") if t.strip()]
+    tabs_to_process = [t.strip() for t in args.tab.split(",") if t.strip()]
 
     # Collect leads from all tabs
     all_leads = []
@@ -626,22 +651,14 @@ def main():
         print(f"\n{'='*70}")
         print("DRY RUN — Rules output (no Apify calls)\n")
         for lead in all_leads[:20]:
-            tab = lead["tab"]
-            if "contract" in tab.lower():
-                titles, level, confidence, reasoning = determine_target_titles_contract(
-                    lead["job_title"], lead["employee_count"]
-                )
-            else:
-                titles, level, confidence, reasoning = determine_target_titles_perm(
-                    lead["job_title"], lead["employee_count"]
-                )
-            print(f"  [{tab}] Row {lead['row_num']}: {lead['company_name']}")
+            titles, level, confidence, reasoning = determine_target_titles_perm(
+                lead["job_title"], lead["employee_count"]
+            )
+            print(f"  Row {lead['row_num']}: {lead['company_name']}")
             print(f"    Hiring: {lead['job_title']} | Employees: {lead['employee_count'] or '?'}")
             print(f"    Target: {level} → {', '.join(titles[:4])}...")
             print(f"    Confidence: {confidence} | {reasoning}")
-            if "contract" in tab.lower():
-                print(f"    Fallback: CEO/Founder if CTO not found")
-            print(f"    Method: {'LinkedIn scraper' if lead['company_linkedin_url'] else 'No LinkedIn URL'}")
+            print(f"    Method: {'LinkedIn seniority filter' if lead['company_linkedin_url'] else 'No LinkedIn URL'}")
             print()
         if len(all_leads) > 20:
             print(f"  ... and {len(all_leads) - 20} more")
@@ -738,20 +755,11 @@ def main():
         print(f"  → Written to sheet. Running total: {found} found, {not_found} not found\n")
 
     # Summary
-    perm_results = [r for r in results if r["tab"] == "Perm"]
-    contract_results = [r for r in results if r["tab"] == "Contract"]
-
     print(f"\n{'='*50}")
     print(f"Find DM Complete")
     print(f"  Decision makers found: {found}")
     print(f"  Not found: {not_found}")
     print(f"  Total processed: {found + not_found}")
-    if perm_results:
-        perm_found = sum(1 for r in perm_results if r["person_name"])
-        print(f"  Perm tab: {perm_found}/{len(perm_results)} found")
-    if contract_results:
-        contract_found = sum(1 for r in contract_results if r["person_name"])
-        print(f"  Contract tab: {contract_found}/{len(contract_results)} found")
     high = sum(1 for r in results if r["dm_confidence"] == "high")
     med = sum(1 for r in results if r["dm_confidence"] == "medium")
     low = sum(1 for r in results if r["dm_confidence"] == "low")

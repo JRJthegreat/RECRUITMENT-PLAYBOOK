@@ -1,8 +1,8 @@
 """
 Phase 1: Scrape HR job openings from TheirStack → Google Sheets
 
-Calls TheirStack API, deduplicates against existing sheet data,
-and appends new jobs. No DM logic here — that's the agent's job.
+Calls TheirStack API in batches of 500, deduplicates against existing sheet data,
+and appends new jobs in batches of 10. No DM logic here — that's the agent's job.
 """
 
 import os
@@ -24,10 +24,11 @@ load_dotenv(ENV_PATH)
 
 # Constants
 THEIRSTACK_URL = "https://api.theirstack.com/v1/jobs/search"
-PAGE_SIZE = 10
+API_PAGE_SIZE = 500       # Max results per TheirStack API call (paid plan limit)
+SHEET_BATCH_SIZE = 10     # Write to Google Sheets in small batches to avoid failures
 DEFAULT_DAYS = 15
-MAX_EMPLOYEES = 5000
-MIN_EMPLOYEES = 10
+MAX_EMPLOYEES = 1000
+MIN_EMPLOYEES = 1
 RETRY_LIMIT = 3
 RETRY_DELAY = 2
 
@@ -54,12 +55,10 @@ def is_staffing_firm(company_description, company_industry):
     desc_lower = (company_description or "").lower()
     industry_lower = (company_industry or "").lower()
 
-    # Check industry first (fast)
     for ind in STAFFING_INDUSTRIES:
         if ind in industry_lower:
             return True
 
-    # Check description keywords
     for kw in STAFFING_KEYWORDS:
         if kw in desc_lower:
             return True
@@ -84,23 +83,6 @@ def job_seniority_score(job_title):
         if keyword in title_lower:
             best = max(best, score)
     return best
-
-
-def dedup_by_company(jobs):
-    """Keep only the highest-value job per company."""
-    best_per_company = {}  # company_name_lower → (score, job)
-    for job in jobs:
-        company = (job.get("company") or "").strip().lower()
-        if not company:
-            continue
-        score = job_seniority_score(job.get("job_title", ""))
-        existing = best_per_company.get(company)
-        if not existing or score > existing[0]:
-            best_per_company[company] = (score, job)
-
-    kept = [item[1] for item in best_per_company.values()]
-    removed = len(jobs) - len(kept)
-    return kept, removed
 
 
 # Full list of HR job titles to search on TheirStack
@@ -183,7 +165,6 @@ def get_google_service(token_path):
     )
     if creds.expired:
         creds.refresh(Request())
-        # Save refreshed token
         token_data["token"] = creds.token
         with open(token_path, "w") as f:
             json.dump(token_data, f)
@@ -191,35 +172,50 @@ def get_google_service(token_path):
     return build("sheets", "v4", credentials=creds)
 
 
-def ensure_headers(service, sheet_id):
-    """Ensure the sheet has the correct headers. Creates them if missing."""
+def ensure_tab_exists(service, sheet_id, tab_name):
+    """Ensure a tab exists in the spreadsheet. Creates it if missing. Returns sheet GID."""
+    meta = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+    for sheet in meta.get("sheets", []):
+        props = sheet["properties"]
+        if props["title"] == tab_name:
+            return props["sheetId"]
+
+    # Create the tab
+    resp = service.spreadsheets().batchUpdate(
+        spreadsheetId=sheet_id,
+        body={"requests": [{"addSheet": {"properties": {"title": tab_name}}}]},
+    ).execute()
+    new_gid = resp["replies"][0]["addSheet"]["properties"]["sheetId"]
+    print(f"  Created tab '{tab_name}'")
+    return new_gid
+
+
+def ensure_headers(service, sheet_id, tab_name):
+    """Ensure the tab has the correct headers. Creates them if missing."""
     result = service.spreadsheets().values().get(
-        spreadsheetId=sheet_id, range="Sheet1!1:1"
+        spreadsheetId=sheet_id, range=f"'{tab_name}'!1:1"
     ).execute()
     existing = result.get("values", [[]])[0]
 
     if not existing:
-        # Empty sheet — write all headers
         service.spreadsheets().values().update(
             spreadsheetId=sheet_id,
-            range="Sheet1!A1",
+            range=f"'{tab_name}'!A1",
             valueInputOption="RAW",
             body={"values": [HEADERS]},
         ).execute()
-        print(f"  Created {len(HEADERS)} column headers")
+        print(f"  Created {len(HEADERS)} column headers in '{tab_name}'")
     else:
-        # Check if headers match
         if existing != HEADERS[:len(existing)]:
-            print(f"  Warning: existing headers don't match expected. Using existing sheet structure.")
+            print(f"  Warning: existing headers in '{tab_name}' don't match expected. Using existing sheet structure.")
 
 
-def get_existing_job_ids(service, sheet_id):
+def get_existing_job_ids(service, sheet_id, tab_name):
     """Read the Job_Id column to build a dedup set."""
     result = service.spreadsheets().values().get(
-        spreadsheetId=sheet_id, range="Sheet1!A:A"  # Column A = Job_Id
+        spreadsheetId=sheet_id, range=f"'{tab_name}'!A:A"
     ).execute()
     rows = result.get("values", [])
-    # Skip header row, collect non-empty values
     ids = set()
     for row in rows[1:]:
         if row and row[0].strip():
@@ -227,7 +223,7 @@ def get_existing_job_ids(service, sheet_id):
     return ids
 
 
-def theirstack_search(api_key, page, days, min_employees=MIN_EMPLOYEES, max_employees=MAX_EMPLOYEES):
+def theirstack_search(api_key, page, days):
     """Search TheirStack for HR job openings. Returns (jobs_list, total_results)."""
     headers = {
         "Accept": "application/json",
@@ -235,57 +231,56 @@ def theirstack_search(api_key, page, days, min_employees=MIN_EMPLOYEES, max_empl
     }
     payload = {
         "include_total_results": True,
-        "order_by": [{"desc": False, "field": "date_posted"}],
         "posted_at_max_age_days": days,
         "job_country_code_or": ["US"],
         "job_title_or": HR_JOB_TITLES,
         "job_title_not": ["Temporary", "Assistant", "Part-time", "Intern"],
         "industry_id_not": [104, 10, 100],
-        "max_employee_count": max_employees,
-        "min_employee_count_or_null": min_employees,
+        "max_employee_count": MAX_EMPLOYEES,
+        "min_employee_count_or_null": MIN_EMPLOYEES,
         "company_type": "direct_employer",
         "employment_statuses_or": ["full_time"],
         "page": page,
-        "limit": PAGE_SIZE,
+        "limit": API_PAGE_SIZE,
         "blur_company_data": False,
     }
 
     for attempt in range(RETRY_LIMIT):
         try:
-            resp = requests.post(THEIRSTACK_URL, headers=headers, json=payload, timeout=30)
+            resp = requests.post(THEIRSTACK_URL, headers=headers, json=payload, timeout=60)
             if resp.status_code == 200:
                 data = resp.json()
-                total = data.get("total_results", 0)
+                metadata = data.get("metadata") or {}
+                total = metadata.get("total_results", 0)
                 return data.get("data", []), total
             elif resp.status_code == 429:
                 wait = RETRY_DELAY * (2 ** attempt)
                 print(f"  Rate limited, waiting {wait}s...")
                 time.sleep(wait)
+            elif resp.status_code == 504:
+                wait = 10 * (2 ** attempt)
+                print(f"  Server timeout (504), retrying in {wait}s (attempt {attempt + 1}/{RETRY_LIMIT})...")
+                time.sleep(wait)
+            elif resp.status_code >= 500:
+                wait = 5 * (2 ** attempt)
+                print(f"  Server error {resp.status_code}, retrying in {wait}s (attempt {attempt + 1}/{RETRY_LIMIT})...")
+                time.sleep(wait)
             else:
                 print(f"  *** TheirStack API error {resp.status_code}: {resp.text[:200]}")
                 print(f"  *** SCRAPE INCOMPLETE — stopped at page {page}")
-                return None, 0  # None signals error (vs empty [] for no results)
+                return None, 0
+        except requests.exceptions.Timeout:
+            wait = 10 * (2 ** attempt)
+            print(f"  Request timeout, retrying in {wait}s (attempt {attempt + 1}/{RETRY_LIMIT})...")
+            time.sleep(wait)
         except requests.exceptions.RequestException as e:
-            print(f"  Request error: {e}")
-            if attempt < RETRY_LIMIT - 1:
-                time.sleep(RETRY_DELAY)
-    return [], 0
+            wait = 5 * (2 ** attempt)
+            print(f"  Request error: {e}, retrying in {wait}s (attempt {attempt + 1}/{RETRY_LIMIT})...")
+            time.sleep(wait)
 
-
-def parse_employee_count(count_range):
-    """Parse employee count range string to an integer (use upper bound)."""
-    if not count_range:
-        return None
-    s = str(count_range).strip()
-    # Handle formats like "50-200", "1001-5000", "10001+"
-    s = s.replace(",", "").replace("+", "")
-    parts = s.split("-")
-    try:
-        if len(parts) == 2:
-            return int(parts[1])  # upper bound
-        return int(parts[0])
-    except (ValueError, IndexError):
-        return None
+    print(f"  *** All {RETRY_LIMIT} retries failed at page {page}")
+    print(f"  *** Re-run with --start_page {page} to resume")
+    return None, 0
 
 
 def job_to_row(job):
@@ -325,45 +320,56 @@ def job_to_row(job):
     ]
 
 
-def append_rows(service, sheet_id, rows, token_path=None):
-    """Append rows to the sheet in small batches with retry and token refresh."""
+def append_rows_to_tab(service, sheet_id, tab_name, rows, token_path=None):
+    """Append rows to a specific tab with retry and token refresh."""
     if not rows:
         return
-    BATCH_SIZE = 10
-    for i in range(0, len(rows), BATCH_SIZE):
-        batch = rows[i:i + BATCH_SIZE]
-        for attempt in range(3):
-            try:
-                service.spreadsheets().values().append(
-                    spreadsheetId=sheet_id,
-                    range="Sheet1!A:A",
-                    valueInputOption="RAW",
-                    insertDataOption="INSERT_ROWS",
-                    body={"values": batch},
-                ).execute()
-                break
-            except Exception as e:
-                if attempt < 2:
-                    print(f"  Batch {i//BATCH_SIZE + 1} failed, retrying... ({e})")
-                    time.sleep(2)
-                    # Rebuild service with fresh token
-                    if token_path:
-                        try:
-                            service = get_google_service(token_path)
-                        except Exception:
-                            pass
-                else:
-                    raise
-        done = min(i + BATCH_SIZE, len(rows))
-        if done % 100 == 0 or done == len(rows):
-            print(f"  Appended {done}/{len(rows)} rows...")
+    for attempt in range(3):
+        try:
+            service.spreadsheets().values().append(
+                spreadsheetId=sheet_id,
+                range=f"'{tab_name}'!A:A",
+                valueInputOption="RAW",
+                insertDataOption="INSERT_ROWS",
+                body={"values": rows},
+            ).execute()
+            return
+        except Exception as e:
+            is_rate_limit = "429" in str(e) or "RATE_LIMIT" in str(e)
+            wait = 30 if is_rate_limit else 2
+            if attempt < 2:
+                print(f"    Sheet write retry {attempt + 1} (waiting {wait}s)... ({e})")
+                time.sleep(wait)
+                if token_path:
+                    try:
+                        service = get_google_service(token_path)
+                    except Exception:
+                        pass
+            else:
+                print(f"    Sheet write FAILED for tab '{tab_name}': {e}")
+
+
+def sort_tab(service, sheet_id, tab_gid):
+    """Sort a tab by posted_date column (col I = index 8), oldest first."""
+    service.spreadsheets().batchUpdate(
+        spreadsheetId=sheet_id,
+        body={
+            "requests": [{
+                "sortRange": {
+                    "range": {"sheetId": tab_gid, "startRowIndex": 1},
+                    "sortSpecs": [{"dimensionIndex": 8, "sortOrder": "ASCENDING"}],
+                }
+            }]
+        },
+    ).execute()
 
 
 def main():
     parser = argparse.ArgumentParser(description="Scrape HR jobs from TheirStack into Google Sheets")
     parser.add_argument("--sheet_url", required=True, help="Google Sheets URL or ID")
     parser.add_argument("--days", type=int, default=DEFAULT_DAYS, help=f"Max age of job postings in days (default: {DEFAULT_DAYS})")
-    parser.add_argument("--start_page", type=int, default=0, help="Page number to start from (for resuming interrupted scrapes)")
+    parser.add_argument("--limit", type=int, default=0, help="Max total jobs to scrape (0 = all)")
+    parser.add_argument("--start_page", type=int, default=0, help="Page number to start from (for resuming)")
     args = parser.parse_args()
 
     # Validate env
@@ -381,20 +387,25 @@ def main():
     print("Connecting to Google Sheets...")
     sheet_id = get_sheet_id_from_url(args.sheet_url)
     service = get_google_service(token_path)
-    ensure_headers(service, sheet_id)
+
+    # Ensure Data tab exists with headers
+    data_gid = ensure_tab_exists(service, sheet_id, "Data")
+    ensure_headers(service, sheet_id, "Data")
 
     # Get existing job IDs for dedup
     print("Loading existing job IDs for deduplication...")
-    existing_ids = get_existing_job_ids(service, sheet_id)
-    print(f"  Found {len(existing_ids)} existing jobs in sheet")
+    existing_ids = get_existing_job_ids(service, sheet_id, "Data")
+    print(f"  Found {len(existing_ids)} existing jobs")
 
     # Scrape TheirStack — page by page, filter + write each batch immediately
-    start_msg = f"\nScraping TheirStack (posted in last {args.days} days, {MIN_EMPLOYEES}-{MAX_EMPLOYEES} employees, oldest first)"
+    start_msg = f"\nScraping TheirStack (US, {MIN_EMPLOYEES}-{MAX_EMPLOYEES} employees, posted in last {args.days} days)"
     if args.start_page > 0:
         start_msg += f", resuming from page {args.start_page}"
+    if args.limit:
+        start_msg += f", limit {args.limit} jobs"
     print(start_msg + "...")
+
     total_new = 0
-    total_written = 0
     page = args.start_page
     total_results = None
     skipped_dup = 0
@@ -418,7 +429,7 @@ def main():
             break
 
         # Filter this page's jobs
-        page_jobs = []
+        rows = []
         for job in jobs:
             job_id = str(job.get("id", ""))
             if job_id in existing_ids:
@@ -440,73 +451,49 @@ def main():
             if company_name in companies_seen:
                 prev_score, prev_job = companies_seen[company_name]
                 if score > prev_score:
-                    # New job is better — replace (old one already written, but that's ok)
                     companies_seen[company_name] = (score, job)
-                    page_jobs.append(job)
-                    existing_ids.add(job_id)
                 else:
                     skipped_company_dup += 1
                     existing_ids.add(job_id)
                     continue
             else:
                 companies_seen[company_name] = (score, job)
-                page_jobs.append(job)
-                existing_ids.add(job_id)
 
-        # Write this page's filtered jobs to sheet immediately
-        if page_jobs:
-            rows = [job_to_row(job) for job in page_jobs]
-            for attempt in range(3):
-                try:
-                    service.spreadsheets().values().append(
-                        spreadsheetId=sheet_id,
-                        range="Sheet1!A:A",
-                        valueInputOption="RAW",
-                        insertDataOption="INSERT_ROWS",
-                        body={"values": rows},
-                    ).execute()
-                    break
-                except Exception as e:
-                    if attempt < 2:
-                        print(f"    Sheet write retry {attempt + 1}... ({e})")
-                        time.sleep(2)
-                        service = get_google_service(token_path)
-                    else:
-                        print(f"    Sheet write FAILED for page {page}: {e}")
-            total_written += len(page_jobs)
+            existing_ids.add(job_id)
+            rows.append(job_to_row(job))
 
-        total_new += len(page_jobs)
+        # Write to sheet in batches of SHEET_BATCH_SIZE (with 1.5s delay to stay under 60 writes/min)
+        for i in range(0, len(rows), SHEET_BATCH_SIZE):
+            batch = rows[i:i + SHEET_BATCH_SIZE]
+            append_rows_to_tab(service, sheet_id, "Data", batch, token_path)
+            if i + SHEET_BATCH_SIZE < len(rows):
+                time.sleep(1.5)
+
+        total_new += len(rows)
         page += 1
-        print(f"  Page {page}: +{len(page_jobs)} written | total: {total_new} new, {skipped_dup} dup, {skipped_staffing} staffing, {skipped_company_dup} company dup")
+        print(f"  API page {page}: fetched {len(jobs)}, +{len(rows)} added | total: {total_new} new, {skipped_dup} dup, {skipped_staffing} staffing, {skipped_company_dup} company dup")
+
+        # Check limit
+        if args.limit and total_new >= args.limit:
+            print(f"  Reached limit of {args.limit} jobs.")
+            break
 
         # Stop if exhausted all pages
-        if total_results and page * PAGE_SIZE >= total_results:
+        if total_results and page * API_PAGE_SIZE >= total_results:
             break
 
         # Small delay to be nice to the API
         time.sleep(0.5)
 
-    # Sort sheet by posted_date (oldest first)
-    print("\nSorting sheet by posted_date (oldest first)...")
-    meta = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-    sheet_gid = meta["sheets"][0]["properties"]["sheetId"]
-    service.spreadsheets().batchUpdate(
-        spreadsheetId=sheet_id,
-        body={
-            "requests": [{
-                "sortRange": {
-                    "range": {"sheetId": sheet_gid, "startRowIndex": 1},
-                    "sortSpecs": [{"dimensionIndex": 8, "sortOrder": "ASCENDING"}],
-                }
-            }]
-        },
-    ).execute()
+    # Sort by posted_date (oldest first)
+    print("\nSorting by posted_date (oldest first)...")
+    sort_tab(service, sheet_id, data_gid)
     print("  Done.")
 
     # Summary
     print(f"\n{'='*50}")
     print(f"Phase 1 Complete")
-    print(f"  New jobs written to sheet: {total_written}")
+    print(f"  Jobs written: {total_new}")
     print(f"  Duplicates skipped: {skipped_dup}")
     print(f"  Staffing firms filtered: {skipped_staffing}")
     print(f"  Same-company duplicates: {skipped_company_dup}")

@@ -211,8 +211,8 @@ def read_tab_data(service, sheet_id, tab_name):
 def main():
     parser = argparse.ArgumentParser(description="Find emails via AnyMail Finder for tech leads")
     parser.add_argument("--sheet_url", required=True, help="Google Sheets URL or ID")
-    parser.add_argument("--tab", default="both",
-                        help="Tab(s) to process: 'perm', 'contract', 'both', or comma-separated custom names")
+    parser.add_argument("--tab", default="Data",
+                        help="Tab to process (default: Data), or comma-separated names")
     parser.add_argument("--limit", type=int, default=0, help="Max leads to process (0 = all)")
     parser.add_argument("--dm_only", action="store_true", help="Only process rows needing DM lookup (no person_name)")
     parser.add_argument("--email_only", action="store_true", help="Only process rows that already have person_name")
@@ -233,15 +233,7 @@ def main():
     service = get_google_service(token_path)
 
     # Determine which tabs to process
-    tab_arg = args.tab.strip().lower()
-    if tab_arg == "both":
-        tabs_to_process = ["Perm", "Contract"]
-    elif tab_arg == "perm":
-        tabs_to_process = ["Perm"]
-    elif tab_arg == "contract":
-        tabs_to_process = ["Contract"]
-    else:
-        tabs_to_process = [t.strip() for t in args.tab.split(",") if t.strip()]
+    tabs_to_process = [t.strip() for t in args.tab.split(",") if t.strip()]
 
     # Collect rows from all tabs
     all_email_rows = []  # Have person_name, need email

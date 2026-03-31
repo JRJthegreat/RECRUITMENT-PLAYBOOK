@@ -1,8 +1,8 @@
 """
-Phase 1: Scrape tech job openings from TheirStack → Google Sheets (Perm + Contract tabs)
+Phase 1: Scrape tech job openings from TheirStack → Google Sheets (Perm only)
 
-Calls TheirStack API for European tech roles, classifies each as perm or contract,
-deduplicates against existing sheet data, and appends to the correct tab.
+Calls TheirStack API for European tech roles, filters out contract/temp positions,
+deduplicates against existing sheet data, and appends to the Perm tab.
 """
 
 import os
@@ -24,8 +24,9 @@ load_dotenv(ENV_PATH)
 
 # Constants
 THEIRSTACK_URL = "https://api.theirstack.com/v1/jobs/search"
-PAGE_SIZE = 10
-DEFAULT_DAYS = 15
+API_PAGE_SIZE = 500       # Max results per TheirStack API call (paid plan limit)
+SHEET_BATCH_SIZE = 10     # Write to Google Sheets in small batches to avoid failures
+DEFAULT_DAYS = 10
 RETRY_LIMIT = 3
 RETRY_DELAY = 2
 
@@ -111,8 +112,31 @@ TECH_JOB_TITLES = [
     "AI Engineer", "Machine Learning Engineer", "ML Engineer", "Applied AI Engineer", "AI/ML Engineer",
     # Web3 / Blockchain
     "Web3 Engineer", "Blockchain Engineer", "Solidity Developer", "Smart Contract Engineer", "Web3 Developer",
+    # GenAI / LLM
+    "LLM Engineer", "GenAI Engineer", "Generative AI Engineer",
+    # MLOps / ML Platform
+    "MLOps Engineer", "ML Platform Engineer",
+    # Computer Vision
+    "Computer Vision Engineer",
+    # Data Science (senior)
+    "Data Scientist",
+    # Platform / DevOps / SRE
+    "Platform Engineer", "DevOps Engineer", "SRE",
+    # Niche languages
+    "Rust Engineer", "Go Engineer",
+    # Engineering leadership
+    "Engineering Manager", "VP Engineering",
     # From client's TheirStack query
-    "CTO", "Software Engineer",
+    "CTO", "Software Engineer", "tech lead", "Machine learning", "Deep learning",
+]
+
+# Extended keywords for job_description_contains_or (superset of titles + extras)
+TECH_DESCRIPTION_KEYWORDS = TECH_JOB_TITLES + [
+    "Fintech", "Azure Ops", "Chief Technology Officer",
+    "head of engineerig", "VP of engineering", "Quantum Computing",
+    # Catch roles by tech stack / domain in description
+    "LLM", "large language model", "GenAI", "generative AI",
+    "PyTorch", "TensorFlow", "computer vision",
 ]
 
 # Keywords for contract classification (title + description scan)
@@ -255,45 +279,78 @@ def classify_employment_type(job):
 
 
 def theirstack_search(api_key, page, days):
-    """Search TheirStack for tech job openings in Europe. Returns (jobs_list, total_results)."""
+    """Search TheirStack for tech job openings in selected European countries. Returns (jobs_list, total_results)."""
     headers = {
         "Accept": "application/json",
         "Authorization": f"Bearer {api_key}",
     }
     payload = {
         "include_total_results": True,
-        "order_by": [{"desc": False, "field": "date_posted"}],
         "posted_at_max_age_days": days,
-        "job_location_or": [{"id": 6255148}],  # Europe (GeoNames continent ID)
-        "job_title_or": TECH_JOB_TITLES,
-        "job_title_not": ["Intern", "Internship", "Trainee", "Apprentice"],
+        "job_location_or": [
+            {"id": 2623032},   # Denmark
+            {"id": 2629691},   # Iceland
+            {"id": 2635167},   # United Kingdom
+            {"id": 2658434},   # Switzerland
+            {"id": 2661886},   # Sweden
+            {"id": 2750405},   # Netherlands
+            {"id": 2782113},   # Austria
+            {"id": 2802361},   # Belgium
+            {"id": 2921044},   # Germany
+            {"id": 2960313},   # Luxembourg
+            {"id": 2963597},   # Liechtenstein
+            {"id": 3017382},   # France
+            {"id": 3144096},   # Norway
+            {"id": 660013},    # Finland
+        ],
+        "job_title_pattern_or": TECH_JOB_TITLES,
+        "job_title_not": ["Intern", "Graduate", "junior"],
         "company_type": "direct_employer",
-        "job_description_contains_or": TECH_JOB_TITLES,
+        "job_description_contains_or": TECH_DESCRIPTION_KEYWORDS,
+        "min_employee_count_or_null": 10,
+        "max_employee_count_or_null": 500,
+        "industry_id_not": [104],
         "page": page,
-        "limit": PAGE_SIZE,
+        "limit": API_PAGE_SIZE,
         "blur_company_data": False,
     }
 
     for attempt in range(RETRY_LIMIT):
         try:
-            resp = requests.post(THEIRSTACK_URL, headers=headers, json=payload, timeout=30)
+            resp = requests.post(THEIRSTACK_URL, headers=headers, json=payload, timeout=60)
             if resp.status_code == 200:
                 data = resp.json()
-                total = data.get("total_results", 0)
+                metadata = data.get("metadata") or {}
+                total = metadata.get("total_results", 0)
                 return data.get("data", []), total
             elif resp.status_code == 429:
                 wait = RETRY_DELAY * (2 ** attempt)
                 print(f"  Rate limited, waiting {wait}s...")
                 time.sleep(wait)
+            elif resp.status_code == 504:
+                wait = 10 * (2 ** attempt)
+                print(f"  Server timeout (504), retrying in {wait}s (attempt {attempt + 1}/{RETRY_LIMIT})...")
+                time.sleep(wait)
+            elif resp.status_code >= 500:
+                wait = 5 * (2 ** attempt)
+                print(f"  Server error {resp.status_code}, retrying in {wait}s (attempt {attempt + 1}/{RETRY_LIMIT})...")
+                time.sleep(wait)
             else:
                 print(f"  *** TheirStack API error {resp.status_code}: {resp.text[:200]}")
                 print(f"  *** SCRAPE INCOMPLETE — stopped at page {page}")
                 return None, 0
+        except requests.exceptions.Timeout:
+            wait = 10 * (2 ** attempt)
+            print(f"  Request timeout, retrying in {wait}s (attempt {attempt + 1}/{RETRY_LIMIT})...")
+            time.sleep(wait)
         except requests.exceptions.RequestException as e:
-            print(f"  Request error: {e}")
-            if attempt < RETRY_LIMIT - 1:
-                time.sleep(RETRY_DELAY)
-    return [], 0
+            wait = 5 * (2 ** attempt)
+            print(f"  Request error: {e}, retrying in {wait}s (attempt {attempt + 1}/{RETRY_LIMIT})...")
+            time.sleep(wait)
+
+    print(f"  *** All {RETRY_LIMIT} retries failed at page {page}")
+    print(f"  *** Re-run with --start_page {page} to resume")
+    return None, 0
 
 
 def parse_employee_count(count_range):
@@ -363,9 +420,11 @@ def append_rows_to_tab(service, sheet_id, tab_name, rows, token_path=None):
             ).execute()
             return
         except Exception as e:
+            is_rate_limit = "429" in str(e) or "RATE_LIMIT" in str(e)
+            wait = 30 if is_rate_limit else 2
             if attempt < 2:
-                print(f"    Sheet write retry {attempt + 1}... ({e})")
-                time.sleep(2)
+                print(f"    Sheet write retry {attempt + 1} (waiting {wait}s)... ({e})")
+                time.sleep(wait)
                 if token_path:
                     try:
                         service = get_google_service(token_path)
@@ -391,7 +450,7 @@ def sort_tab(service, sheet_id, tab_gid):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Scrape tech jobs from TheirStack into Google Sheets (Perm + Contract tabs)")
+    parser = argparse.ArgumentParser(description="Scrape tech jobs from TheirStack into Google Sheets (Perm only)")
     parser.add_argument("--sheet_url", required=True, help="Google Sheets URL or ID")
     parser.add_argument("--days", type=int, default=DEFAULT_DAYS, help=f"Max age of job postings in days (default: {DEFAULT_DAYS})")
     parser.add_argument("--limit", type=int, default=0, help="Max total jobs to scrape (0 = all)")
@@ -414,20 +473,17 @@ def main():
     sheet_id = get_sheet_id_from_url(args.sheet_url)
     service = get_google_service(token_path)
 
-    # Ensure both tabs exist with headers
-    perm_gid = ensure_tab_exists(service, sheet_id, "Perm")
-    contract_gid = ensure_tab_exists(service, sheet_id, "Contract")
-    ensure_headers(service, sheet_id, "Perm")
-    ensure_headers(service, sheet_id, "Contract")
+    # Ensure Data tab exists with headers
+    data_gid = ensure_tab_exists(service, sheet_id, "Data")
+    ensure_headers(service, sheet_id, "Data")
 
-    # Get existing job IDs from BOTH tabs for dedup
+    # Get existing job IDs for dedup
     print("Loading existing job IDs for deduplication...")
-    existing_ids = get_existing_job_ids(service, sheet_id, "Perm")
-    existing_ids |= get_existing_job_ids(service, sheet_id, "Contract")
-    print(f"  Found {len(existing_ids)} existing jobs across both tabs")
+    existing_ids = get_existing_job_ids(service, sheet_id, "Data")
+    print(f"  Found {len(existing_ids)} existing jobs")
 
     # Scrape TheirStack — page by page, classify + write each batch immediately
-    start_msg = f"\nScraping TheirStack (Europe, posted in last {args.days} days, oldest first)"
+    start_msg = f"\nScraping TheirStack (14 countries, 10-500 employees, posted in last {args.days} days)"
     if args.start_page > 0:
         start_msg += f", resuming from page {args.start_page}"
     if args.limit:
@@ -435,8 +491,6 @@ def main():
     print(start_msg + "...")
 
     total_new = 0
-    total_perm = 0
-    total_contract = 0
     page = args.start_page
     total_results = None
     skipped_dup = 0
@@ -460,8 +514,7 @@ def main():
             break
 
         # Filter this page's jobs
-        perm_rows = []
-        contract_rows = []
+        rows = []
         for job in jobs:
             job_id = str(job.get("id", ""))
             if job_id in existing_ids:
@@ -492,27 +545,18 @@ def main():
                 companies_seen[company_name] = (score, job)
 
             existing_ids.add(job_id)
+            rows.append(job_to_row(job))
 
-            # Classify and route to correct tab
-            emp_type = classify_employment_type(job)
-            row = job_to_row(job)
-            if emp_type == "contract":
-                contract_rows.append(row)
-            else:
-                perm_rows.append(row)
+        # Write to sheet in batches of SHEET_BATCH_SIZE (with 1.5s delay to stay under 60 writes/min)
+        for i in range(0, len(rows), SHEET_BATCH_SIZE):
+            batch = rows[i:i + SHEET_BATCH_SIZE]
+            append_rows_to_tab(service, sheet_id, "Data", batch, token_path)
+            if i + SHEET_BATCH_SIZE < len(rows):
+                time.sleep(1.5)
 
-        # Write to respective tabs immediately
-        if perm_rows:
-            append_rows_to_tab(service, sheet_id, "Perm", perm_rows, token_path)
-            total_perm += len(perm_rows)
-        if contract_rows:
-            append_rows_to_tab(service, sheet_id, "Contract", contract_rows, token_path)
-            total_contract += len(contract_rows)
-
-        page_total = len(perm_rows) + len(contract_rows)
-        total_new += page_total
+        total_new += len(rows)
         page += 1
-        print(f"  Page {page}: +{len(perm_rows)} perm, +{len(contract_rows)} contract | total: {total_new} new, {skipped_dup} dup, {skipped_staffing} staffing, {skipped_company_dup} company dup")
+        print(f"  API page {page}: fetched {len(jobs)}, +{len(rows)} added | total: {total_new} new, {skipped_dup} dup, {skipped_staffing} staffing, {skipped_company_dup} company dup")
 
         # Check limit
         if args.limit and total_new >= args.limit:
@@ -520,24 +564,21 @@ def main():
             break
 
         # Stop if exhausted all pages
-        if total_results and page * PAGE_SIZE >= total_results:
+        if total_results and page * API_PAGE_SIZE >= total_results:
             break
 
         # Small delay to be nice to the API
         time.sleep(0.5)
 
-    # Sort both tabs by posted_date (oldest first)
-    print("\nSorting tabs by posted_date (oldest first)...")
-    sort_tab(service, sheet_id, perm_gid)
-    sort_tab(service, sheet_id, contract_gid)
+    # Sort by posted_date (oldest first)
+    print("\nSorting by posted_date (oldest first)...")
+    sort_tab(service, sheet_id, data_gid)
     print("  Done.")
 
     # Summary
     print(f"\n{'='*50}")
     print(f"Phase 1 Complete")
-    print(f"  Perm jobs written: {total_perm}")
-    print(f"  Contract jobs written: {total_contract}")
-    print(f"  Total new jobs: {total_new}")
+    print(f"  Jobs written: {total_new}")
     print(f"  Duplicates skipped: {skipped_dup}")
     print(f"  Staffing firms filtered: {skipped_staffing}")
     print(f"  Same-company duplicates: {skipped_company_dup}")

@@ -9,6 +9,7 @@ import os
 import sys
 import json
 import argparse
+import math
 import time
 import requests
 from urllib.parse import urlparse
@@ -353,6 +354,47 @@ def theirstack_search(api_key, page, days):
     return None, 0
 
 
+def count_check(api_key, days):
+    """Call TheirStack with limit=1 to get the total lead count before scraping."""
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+    payload = {
+        "include_total_results": True,
+        "posted_at_max_age_days": days,
+        "job_location_or": [
+            {"id": 2623032},   # Denmark
+            {"id": 2629691},   # Iceland
+            {"id": 2635167},   # United Kingdom
+            {"id": 2658434},   # Switzerland
+            {"id": 2661886},   # Sweden
+            {"id": 2750405},   # Netherlands
+            {"id": 2782113},   # Austria
+            {"id": 2802361},   # Belgium
+            {"id": 2921044},   # Germany
+            {"id": 2960313},   # Luxembourg
+            {"id": 2963597},   # Liechtenstein
+            {"id": 3017382},   # France
+            {"id": 3144096},   # Norway
+            {"id": 660013},    # Finland
+        ],
+        "job_title_pattern_or": TECH_JOB_TITLES,
+        "job_title_not": ["Intern", "Graduate", "junior"],
+        "company_type": "direct_employer",
+        "job_description_contains_or": TECH_DESCRIPTION_KEYWORDS,
+        "min_employee_count_or_null": 10,
+        "max_employee_count_or_null": 500,
+        "industry_id_not": [104],
+        "page": 0,
+        "limit": 1,
+        "blur_company_data": False,
+    }
+    resp = requests.post(THEIRSTACK_URL, headers=headers, json=payload, timeout=60)
+    resp.raise_for_status()
+    return (resp.json().get("metadata") or {}).get("total_results", 0)
+
+
 def parse_employee_count(count_range):
     """Parse employee count range string to an integer (use upper bound)."""
     if not count_range:
@@ -467,6 +509,18 @@ def main():
     if not os.path.exists(token_path):
         print(f"Error: Google OAuth token not found at {token_path}")
         sys.exit(1)
+
+    # Pre-flight: show total count and ask for confirmation
+    print(f"\nChecking TheirStack for available leads (last {args.days} days)...")
+    total_available = count_check(api_key, args.days)
+    pages_needed = math.ceil(total_available / API_PAGE_SIZE)
+    print(f"  Found {total_available:,} total leads across {pages_needed} page(s) of {API_PAGE_SIZE}.")
+    if args.limit:
+        print(f"  You set --limit {args.limit}, so at most {args.limit} will be written.")
+    confirm = input("\nProceed with scrape? (y/n): ").strip().lower()
+    if confirm != "y":
+        print("Aborted.")
+        sys.exit(0)
 
     # Connect to Google Sheets
     print("Connecting to Google Sheets...")

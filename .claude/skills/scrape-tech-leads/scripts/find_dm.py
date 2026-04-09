@@ -645,6 +645,10 @@ def main():
         sys.exit(0)
 
     print(f"\nTotal: {len(all_leads)} leads across {len(tabs_to_process)} tab(s)")
+    confirm = input("Proceed with DM lookup? (y/n): ").strip().lower()
+    if confirm != "y":
+        print("Aborted.")
+        sys.exit(0)
 
     # Dry run: just show rules output
     if args.dry_run:

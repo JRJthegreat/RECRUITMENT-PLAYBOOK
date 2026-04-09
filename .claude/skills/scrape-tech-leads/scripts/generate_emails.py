@@ -51,13 +51,20 @@ I work with a tech recruiter who's placed multiple {{ROLE_TITLE_PLURAL}} in comp
 
 RULES:
 1. Tone: casual bar conversation, very spartan. No fancy language.
-2. SHORTEN the role title to how a recruiter would actually say it in conversation. Remove filler words, use common abbreviations. Examples:
+2. CLEAN and SHORTEN the role title:
+   a. If the title is in a non-English language (German, French, Finnish, Dutch, etc.), TRANSLATE it to English first.
+   b. Strip gender tags: (m/w/d), (f/m/d), (H/F), (F/M/D), (m/f/x), (H/F/X), (w/m/d), etc.
+   c. Strip location/salary suffixes: "– Munich", "| Schweiz", "(£60k + benefits)", "/ Freelance", "– Alternance"
+   d. Strip brackets noise: "[KHOME]", emojis, numbering prefixes, team names
+   e. Shorten to how a recruiter would actually say it in conversation. Examples:
    - "Senior Natural Language Processing Engineer" → "Senior NLP Engineer"
    - "Machine Learning Engineer - Computer Vision" → "ML Engineer"
    - "Lead Data Engineer (Cloud Platform)" → "Lead Data Engineer"
    - "Solutions Architect - Enterprise" → "Solutions Architect"
    - "Blockchain Smart Contract Developer" → "Smart Contract Developer"
-   Strip parentheticals, numbering prefixes, team names, and redundant words.
+   - "Ingénieur Data Scientist" → "Data Scientist"
+   - "Referent der Geschäftsführung CTO – IT Strategie (m/w/d)" → "CTO"
+   - "Ingénieur SRE / DevOps PostgreSQL (H/F)" → "SRE / DevOps Engineer"
 3. ROLE_TITLE_PLURAL: Pluralize the shortened role title (e.g., "NLP Engineers", "ML Engineers").
 4. PROOF_COMPANY_1 and PROOF_COMPANY_2: Pick the 2 most relevant companies from this list based on the target company's industry: {proof_companies}. If none are a great fit, pick the 2 that are closest.
 5. SPECIALTY_1 and SPECIALTY_2: These are the MOST IMPORTANT part of the email. Read the job description carefully and find the 2 things that make this hire HARD TO FILL. What specific, niche requirement would make the hiring manager think "we've been struggling to find someone with exactly this"?
@@ -98,12 +105,18 @@ Open to interviewing this week if filling this role is urgent.
 
 RULES:
 1. Tone: casual bar conversation, very spartan. No fancy language.
-2. SHORTEN the role title to how a recruiter would actually say it in conversation. Remove filler words, use common abbreviations. Examples:
+2. CLEAN and SHORTEN the role title:
+   a. If the title is in a non-English language (German, French, Finnish, Dutch, etc.), TRANSLATE it to English first.
+   b. Strip gender tags: (m/w/d), (f/m/d), (H/F), (F/M/D), (m/f/x), (H/F/X), (w/m/d), etc.
+   c. Strip location/salary suffixes: "– Munich", "| Schweiz", "(£60k + benefits)", "/ Freelance", "– Alternance"
+   d. Strip brackets noise: "[KHOME]", emojis, numbering prefixes, team names
+   e. Shorten to how a recruiter would actually say it in conversation. Examples:
    - "Senior Natural Language Processing Engineer" → "Senior NLP Engineer"
    - "Machine Learning Engineer - Computer Vision" → "ML Engineer"
    - "Lead Data Engineer (Cloud Platform)" → "Lead Data Engineer"
    - "Solutions Architect - Enterprise" → "Solutions Architect"
-   Strip parentheticals, numbering prefixes, team names, and redundant words.
+   - "Ingénieur Data Scientist" → "Data Scientist"
+   - "DevOps Engineer (m/w/d) für die App Factory" → "DevOps Engineer"
 3. LOCATION: Use the job location provided. If the job is remote or location is unclear, OMIT the location entirely — write "who has a {{ROLE_TITLE}} who just became available" instead of "who has a {{LOCATION}} based {{ROLE_TITLE}}...".
 4. YEARS: Use the years of experience required in the job description + 2 years. If not stated, estimate for the role level + 2.
 5. INDUSTRY: The target industry vertical (e.g., "fintech", "healthtech", "SaaS").
@@ -115,7 +128,8 @@ RULES:
 7. CLEAN the company name. Strip legal suffixes, geographic tags, and generic words. Remove: Inc, LLC, Corp, Ltd, Co., GmbH, AG, SA, BV, Group, Services, Solutions, Holdings, International, Technologies, "The" prefix.
 8. No exclamation points. No em dashes. Use commas instead.
 9. Keep proper capitalization for names and titles.
-10. Respond in JSON only: {{"body": "the email body here"}}
+10. Use correct grammar: "an" before vowel sounds (an Engineering Manager, an AI Engineer), "a" before consonant sounds (a Senior Engineer, a CTO).
+11. Respond in JSON only: {{"body": "the email body here", "cleaned_role": "the cleaned and shortened role title"}}. The cleaned_role should be the final role title you used in the email body.
 
 INPUT:
 Company: {company_name}
@@ -140,11 +154,14 @@ His agency also handles the contracting logistics so your team doesn't have to.
 
 RULES:
 1. Tone: casual bar conversation, very spartan. No fancy language.
-2. SHORTEN the role title to how a recruiter would actually say it in conversation. Remove filler words, use common abbreviations. Examples:
+2. CLEAN and SHORTEN the role title:
+   a. If the title is in a non-English language (German, French, Finnish, Dutch, etc.), TRANSLATE it to English first.
+   b. Strip gender tags: (m/w/d), (f/m/d), (H/F), (F/M/D), (m/f/x), (H/F/X), (w/m/d), etc.
+   c. Strip location/salary suffixes, brackets noise, emojis, numbering prefixes, team names.
+   d. Shorten to how a recruiter would actually say it in conversation. Examples:
    - "Senior Natural Language Processing Engineer" → "Senior NLP Engineer"
    - "Machine Learning Engineer - Computer Vision" → "ML Engineer"
    - "Lead Data Engineer (Cloud Platform)" → "Lead Data Engineer"
-   Strip parentheticals, numbering prefixes, team names, and redundant words.
 3. YEARS: Use the years of experience required in the job description + 2 years. If not stated, estimate for the role level + 2.
 4. INDUSTRY: The target industry vertical (e.g., "fintech", "healthtech", "SaaS").
 5. SPECIALTY_1 and SPECIALTY_2: Same rules as always — the 2 things making this hire HARD TO FILL. Specific, niche requirements from the job description, not generic skills.
@@ -268,7 +285,7 @@ def generate_email(client, lead, retry=0):
 
     try:
         message = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=400,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": prompt}],
@@ -282,6 +299,7 @@ def generate_email(client, lead, retry=0):
 
         data = json.loads(text)
         body = data.get("body", "")
+        cleaned_role = data.get("cleaned_role", "")
 
         # Clean em dashes → commas
         body = body.replace("\u2014", ",").replace("\u2013", ",")
@@ -290,20 +308,20 @@ def generate_email(client, lead, retry=0):
         if "His agency" in body and "\n\nHis agency" not in body:
             body = body.replace("His agency", "\n\nHis agency")
 
-        return body
+        return body, cleaned_role
 
     except anthropic.RateLimitError:
         if retry < MAX_RETRIES:
             wait = (2 ** retry) * 2
             time.sleep(wait)
             return generate_email(client, lead, retry + 1)
-        return None
+        return None, None
     except (json.JSONDecodeError, Exception) as e:
         if retry < MAX_RETRIES:
             time.sleep(1)
             return generate_email(client, lead, retry + 1)
         print(f"  Error for {lead['company_name']}: {e}")
-        return None
+        return None, None
 
 
 def read_tab_data(service, sheet_id, tab_name):
@@ -360,8 +378,8 @@ def ensure_template_variant_header(service, sheet_id, tab_name, headers):
 def main():
     parser = argparse.ArgumentParser(description="Generate outreach emails using Claude (3 templates)")
     parser.add_argument("--sheet_url", required=True, help="Google Sheets URL or ID")
-    parser.add_argument("--tab", default="both",
-                        help="Tab(s) to process: 'perm', 'contract', 'both', or comma-separated custom names")
+    parser.add_argument("--tab", default="Data",
+                        help="Tab to process (default: Data), or comma-separated names")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing email bodies")
     parser.add_argument("--preview", type=int, default=0, help="Preview N emails without writing to sheet")
     parser.add_argument("--limit", type=int, default=0, help="Max leads to process (0 = all)")
@@ -383,15 +401,7 @@ def main():
     service = get_google_service(token_path)
 
     # Determine which tabs to process
-    tab_arg = args.tab.strip().lower()
-    if tab_arg == "both":
-        tabs_to_process = ["Perm", "Contract"]
-    elif tab_arg == "perm":
-        tabs_to_process = ["Perm"]
-    elif tab_arg == "contract":
-        tabs_to_process = ["Contract"]
-    else:
-        tabs_to_process = [t.strip() for t in args.tab.split(",") if t.strip()]
+    tabs_to_process = [t.strip() for t in args.tab.split(",") if t.strip()]
 
     # Collect leads from all tabs
     all_leads = []
@@ -432,16 +442,32 @@ def main():
             print(f"  Missing columns: {', '.join(missing)}")
             continue
 
-        # Ensure template_variant column exists
+        # Ensure template_variant and cleaned_role columns exist
         idx_variant = ensure_template_variant_header(service, sheet_id, tab_name, headers)
-
-        is_contract = "contract" in tab_name.lower()
+        # Add cleaned_role column right after template_variant
+        idx_cleaned_role = col_idx("cleaned_role")
+        if idx_cleaned_role is None:
+            idx_cleaned_role = idx_variant + 1
+            gid = get_sheet_gid(service, sheet_id, tab_name)
+            if gid is not None:
+                service.spreadsheets().batchUpdate(
+                    spreadsheetId=sheet_id,
+                    body={"requests": [{"appendDimension": {"sheetId": gid, "dimension": "COLUMNS", "length": 1}}]},
+                ).execute()
+            service.spreadsheets().values().update(
+                spreadsheetId=sheet_id,
+                range=f"'{tab_name}'!{col_letter(idx_cleaned_role)}1",
+                valueInputOption="RAW",
+                body={"values": [["cleaned_role"]]},
+            ).execute()
+            print(f"  Added cleaned_role column at {col_letter(idx_cleaned_role)}")
 
         tab_col_info[tab_name] = {
             "body": idx_body,
             "firstname": idx_firstname,
             "lastname": idx_lastname,
             "variant": idx_variant,
+            "cleaned_role": idx_cleaned_role,
         }
 
         tab_count = 0
@@ -469,17 +495,8 @@ def main():
 
             first_name, last_name = split_name(person_name)
 
-            # Template selection
-            if is_contract:
-                template = "contract"
-            else:
-                template = random.choice(["perm_a", "perm_b"])
-
-            # Greeting prefix
-            if template == "perm_b":
-                greeting = f"Hi {first_name}\n\n"
-            else:
-                greeting = f"Hey {first_name},\n\n"
+            template = "perm_b"
+            greeting = f"Hi {first_name}\n\n"
 
             all_leads.append({
                 "tab": tab_name,
@@ -534,7 +551,7 @@ def main():
             }
             for future in as_completed(future_to_lead):
                 lead = future_to_lead[future]
-                body = future.result()
+                body, cleaned_role = future.result()
                 if body:
                     full_body = f"{lead['greeting']}{body}"
                     r = {
@@ -544,6 +561,7 @@ def main():
                         "last_name": lead["last_name"],
                         "body": full_body,
                         "template": lead["template"],
+                        "cleaned_role": cleaned_role or "",
                     }
                     batch_results.append(r)
                     results.append(r)
@@ -563,6 +581,7 @@ def main():
                 updates = []
                 body_col = col_letter(info["body"])
                 variant_col = col_letter(info["variant"])
+                role_col = col_letter(info["cleaned_role"])
 
                 for r in tab_results:
                     updates.append({
@@ -572,6 +591,10 @@ def main():
                     updates.append({
                         "range": f"'{tab_name}'!{variant_col}{r['row_num']}",
                         "values": [[r["template"]]],
+                    })
+                    updates.append({
+                        "range": f"'{tab_name}'!{role_col}{r['row_num']}",
+                        "values": [[r["cleaned_role"]]],
                     })
                     if info["firstname"] is not None:
                         updates.append({

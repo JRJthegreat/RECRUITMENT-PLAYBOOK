@@ -204,48 +204,98 @@ def shorten_role(job_title):
     return title
 
 
+def push_lead(api_key, campaign_id, lead):
+    """Push a single lead to Instantly. Returns True on success."""
+    payload = dict(lead)
+    payload["campaign"] = campaign_id
+    try:
+        resp = requests.post(
+            f"{INSTANTLY_BASE}/leads",
+            headers=instantly_headers(api_key),
+            json=payload,
+            timeout=30,
+        )
+        return resp.status_code == 200, resp.status_code, resp.text[:200]
+    except requests.exceptions.RequestException as e:
+        return False, 0, str(e)
+
+
 def add_leads(api_key, campaign_id, leads, service=None, sheet_id=None, added_col=None, leads_to_push=None):
-    """Add leads to campaign one at a time via v2 API, writing to sheet every 10."""
+    """Add leads to campaign one at a time via v2 API, writing to sheet every 10.
+    Retries failed leads up to 3 times with 5s delay."""
     added = 0
-    failed = 0
     BATCH_SIZE = 10
+    failed_indices = []  # track (original_index, lead) for retry
 
     for i, lead in enumerate(leads):
-        lead["campaign"] = campaign_id
-        try:
-            resp = requests.post(
-                f"{INSTANTLY_BASE}/leads",
-                headers=instantly_headers(api_key),
-                json=lead,
-                timeout=30,
-            )
-            if resp.status_code == 200:
-                added += 1
-            else:
-                print(f"  Lead {i+1} failed ({resp.status_code}): {resp.text[:200]}")
-                failed += 1
-        except requests.exceptions.RequestException as e:
-            print(f"  Lead {i+1} error: {e}")
-            failed += 1
+        ok, status_code, text = push_lead(api_key, campaign_id, lead)
+        if ok:
+            added += 1
+        else:
+            print(f"  Lead {i+1} failed ({status_code}): {text}")
+            failed_indices.append((i, lead))
 
-        # Every 10 leads, mark them in the sheet
+        # Every 10 leads (or at end), mark successfully added ones in sheet
         if (i + 1) % BATCH_SIZE == 0 or (i + 1) == len(leads):
             batch_start = (i // BATCH_SIZE) * BATCH_SIZE
             if service and sheet_id and added_col and leads_to_push:
+                # Only mark leads that were not in failed_indices
+                failed_set = {idx for idx, _ in failed_indices}
                 updates = []
-                for lp in leads_to_push[batch_start:i + 1]:
-                    updates.append({
-                        "range": f"{added_col}{lp['row_num']}",
-                        "values": [["TRUE"]],
-                    })
+                for j in range(batch_start, i + 1):
+                    if j not in failed_set:
+                        updates.append({
+                            "range": f"{added_col}{leads_to_push[j]['row_num']}",
+                            "values": [["TRUE"]],
+                        })
                 if updates:
-                    service.spreadsheets().values().batchUpdate(
-                        spreadsheetId=sheet_id,
-                        body={"valueInputOption": "RAW", "data": updates},
-                    ).execute()
-            print(f"  Progress: {i+1}/{len(leads)} ({added} added, {failed} failed) → written to sheet")
+                    for attempt in range(3):
+                        try:
+                            service.spreadsheets().values().batchUpdate(
+                                spreadsheetId=sheet_id,
+                                body={"valueInputOption": "RAW", "data": updates},
+                            ).execute()
+                            break
+                        except Exception as e:
+                            if attempt < 2:
+                                time.sleep(5)
+                            else:
+                                print(f"  Sheet write failed for batch: {e}")
+            print(f"  Progress: {i+1}/{len(leads)} ({added} added, {len(failed_indices)} failed) → written to sheet")
+            # 1.5s delay between sheet batch writes
+            if i + 1 < len(leads):
+                time.sleep(1.5)
 
-    return added, failed
+    # Retry failed leads up to 3 times
+    if failed_indices:
+        print(f"\n  Retrying {len(failed_indices)} failed leads...")
+        for attempt in range(1, 4):
+            still_failing = []
+            time.sleep(5 * attempt)
+            for orig_idx, lead in failed_indices:
+                ok, status_code, text = push_lead(api_key, campaign_id, lead)
+                if ok:
+                    added += 1
+                    # Mark in sheet
+                    if service and sheet_id and added_col and leads_to_push:
+                        try:
+                            service.spreadsheets().values().batchUpdate(
+                                spreadsheetId=sheet_id,
+                                body={"valueInputOption": "RAW", "data": [{
+                                    "range": f"{added_col}{leads_to_push[orig_idx]['row_num']}",
+                                    "values": [["TRUE"]],
+                                }]},
+                            ).execute()
+                        except Exception:
+                            pass
+                else:
+                    still_failing.append((orig_idx, lead))
+            print(f"  Retry {attempt}: {len(failed_indices) - len(still_failing)} recovered, {len(still_failing)} still failing")
+            failed_indices = still_failing
+            if not failed_indices:
+                break
+
+    return added, len(failed_indices)
 
 
 def main():
@@ -273,7 +323,7 @@ def main():
 
     # Read all data
     result = service.spreadsheets().values().get(
-        spreadsheetId=sheet_id, range="Sheet1"
+        spreadsheetId=sheet_id, range="Data"
     ).execute()
     all_rows = result.get("values", [])
     if len(all_rows) < 2:
@@ -299,6 +349,7 @@ def main():
     idx_linkedin = col_idx("linkedin_url")
     idx_result_title = col_idx("result_title")
     idx_added = col_idx("Added to instantly")
+    idx_cleaned_role = col_idx("cleaned_role")
 
     missing = []
     for name, idx in [("email", idx_email), ("First name", idx_firstname),
@@ -331,7 +382,8 @@ def main():
         last_name = cell(idx_lastname)
         company = cell(idx_company)
         job_title = cell(idx_title)
-        role = shorten_role(job_title)
+        cleaned_role = cell(idx_cleaned_role) if idx_cleaned_role is not None else ""
+        role = cleaned_role if cleaned_role else shorten_role(job_title)
         job_link = cell(idx_url)
         company_linkedin = cell(idx_company_linkedin)
         linkedin_url = cell(idx_linkedin)

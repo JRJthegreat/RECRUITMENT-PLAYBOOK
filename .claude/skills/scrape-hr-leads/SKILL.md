@@ -6,86 +6,148 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent
 
 # Scrape HR Leads
 
-## Goal
-End-to-end HR recruitment lead pipeline: job scraping → decision maker research → email finding → personalized outreach → Instantly campaign.
+## What This Skill Does
+
+Scrapes HR job postings and finds decision maker emails. **Stops there** — email copy and campaign push are handled manually.
+
+**Skill output:** Google Sheet URL with leads + DM emails populated, ready for copy generation.
+
+**The only thing that changes between campaigns:** `--days` (how far back to scrape).
+
+---
+
+## Run Commands (Skill Scope)
+
+```bash
+# Step 1 — Scrape (shows total count first, asks to confirm before burning credits)
+python3 -W ignore .claude/skills/scrape-hr-leads/scripts/scrape_leads.py \
+  --sheet_url "SHEET_URL" --days 30
+
+# Step 2 — Find DMs + emails (Pass 1 + auto-retry in one run)
+python3 -W ignore .claude/skills/scrape-hr-leads/scripts/find_dm.py \
+  --sheet_url "SHEET_URL"
+```
+
+After Step 2 completes, output the Google Sheet URL to the user. Done.
+
+---
+
+## Manual Steps (handled by user, not this skill)
+
+```bash
+# Generate emails (run manually when ready)
+python3 -W ignore .claude/skills/scrape-hr-leads/scripts/generate_emails.py \
+  --sheet_url "SHEET_URL"
+
+# Push to Instantly campaign (run manually after reviewing emails)
+python3 -W ignore .claude/skills/scrape-hr-leads/scripts/push_campaign.py \
+  --sheet_url "SHEET_URL" --campaign_name "HR Leads DD MM"
+
+# Or push to existing campaign:
+python3 -W ignore .claude/skills/scrape-hr-leads/scripts/push_campaign.py \
+  --sheet_url "SHEET_URL" --campaign_id "CAMPAIGN_ID" --campaign_name "HR Leads DD MM"
+```
+
+---
 
 ## Scripts
-- `./scripts/scrape_leads.py` — Phase 1: TheirStack → Google Sheets (raw jobs)
-- `./scripts/enrich_leads.py` — Phase 2: AnyMail Finder → update sheet with emails
-- `./scripts/create_campaign.py` — Phase 3: Claude email gen → new Instantly campaign
 
-## Agent
-- `decision-maker` — Research agent that determines who to target at each company
+| Script | Phase | What it does |
+|--------|-------|-------------|
+| `scrape_leads.py` | 1 | TheirStack → Google Sheets. Deduplicates, filters staffing firms, one job per company. |
+| `find_dm.py` | 1.5 | AnyMail Finder DM lookup → person_name, email, title, linkedin. Two passes: primary + auto-retry with flipped category. |
+| `generate_emails.py` | 3a | Claude Opus 4 email generation → First name, Last name, Body, cleaned_role. |
+| `push_campaign.py` | 3b | Creates Instantly campaign (or uses existing), pushes leads with all custom variables, retries failures. |
+| `enrich_leads.py` | 2 | Fallback email finder — only needed if find_dm.py misses rows. |
 
-## Orchestration Flow
+---
 
-When this skill is invoked, follow these steps **in order**, pausing for user confirmation between phases:
+## Key Flags
 
-### 1. Gather Parameters
-Ask the user:
-- **Campaign name** (required) — e.g., "HR Outreach March 2026"
-- **Lead count** (default: 10) — how many new leads to scrape
-- **Google Sheet URL** (required) — where to store leads. Create a new sheet if user doesn't have one.
-- Any filter overrides (days posted, country, employee range)
+### scrape_leads.py
+- `--days N` — scrape jobs posted in last N days (default: 15)
+- `--limit N` — cap results (skips confirmation prompt)
+- `--yes` — skip confirmation prompt for automation
+- `--start_page N` — resume from page N after a crash
 
-### 2. Phase 1 — Scrape Jobs
-```bash
-python3 -u ./scripts/scrape_leads.py --sheet_url "SHEET_URL" --limit 10
+### find_dm.py
+- `--limit N` — process only first N leads in Pass 1
+- `--dry_run` — preview DM targeting rules without calling AnyMail
+- `--no_retry` — skip Pass 2 retry (debugging only)
+
+### generate_emails.py
+- `--preview N` — print first N emails without writing to sheet
+- `--overwrite` — regenerate emails that already have a Body
+- `--limit N` — cap generation
+
+### push_campaign.py
+- `--campaign_name` — name for the new campaign (required)
+- `--campaign_id` — use existing campaign instead of creating one
+- `--dry_run` — preview leads without pushing
+
+---
+
+## Rate Limit Rules (strictly enforced in all scripts)
+
+| API | Limit | How we handle it |
+|-----|-------|-----------------|
+| Google Sheets | 60 writes/min | Batches of 10, 1.5s sleep between each batch |
+| TheirStack | credits per result | Preview call first (shows total), confirmation required if >500 and no --limit |
+| AnyMail Finder | credits per call | 5 parallel workers, 180s timeout |
+| Claude API | token rate limit | Exponential backoff (2^retry × 2s), max 3 retries |
+| Instantly | 30s timeout | Sequential push, 3 retries with 5s delay for failures |
+
+**Sheet write failures in scrape_leads.py are fatal** — the script stops and prints the exact `--start_page N` to resume from. This prevents burning TheirStack credits on rows that can't be saved.
+
+---
+
+## DM Targeting Rules (find_dm.py)
+
+Primary category selection:
+- Hiring **senior HR leader** (VP/Director/Head/C-suite) → `["ceo"]`
+- Company size **unknown** → `["ceo"]`
+- **< 200 employees** → `["ceo"]`
+- **200–1000 employees** → `["hr"]`
+- **1000+ employees** → `["hr"]`
+
+Auto-retry (Pass 2) flips the category: `["ceo"]` → `["hr"]`, `["hr"]` → `["ceo"]`
+
+---
+
+## Google Sheet Column Layout
+
+Tab: **Data**
+
 ```
-Show the summary to the user.
-
-### 3. Decision-Maker Research
-After Phase 1, read the new rows from the sheet. Batch companies into groups of 5-10 and launch the `decision-maker` agent for each batch.
-
-For each batch, create a temp output file and prompt the agent:
-```
-Research these companies and determine the right decision maker for each.
-Write your results to: /tmp/dm_batch_N.json
-
-Companies:
-1. [company_name] ([employee_count] employees, [industry])
-   Hiring: [job_title] in [job_location]
-   Domain: [company_url]
-   Job ID: [job_id]
-   Description: [first 200 chars of description]
-...
+Job_Id | person_name | result_title | linkedin_url | email |
+company name | job_title | url | posted_date | job_country_code |
+is_remote | employment_status | seniority | job_location | job_description |
+salary | company_url | company_linkedin_url | company_industry |
+company_employee_count | company_revenue_usd | company_description | company_city |
+dm_confidence | dm_reasoning | First name | Last name | Body | Added to instantly |
+cleaned_role
 ```
 
-After all batches complete:
-- Parse the JSON results
-- Update the Google Sheet with: target_title, target_person_name, target_linkedin_url, uses_agencies, dm_confidence, dm_reasoning
-- **Show a summary table to the user** with company name, DM pick, confidence, and reasoning
-- Ask: "Look good? Any adjustments before I find emails?"
+---
 
-### 4. Phase 2 — Find Emails
-After user confirms:
-```bash
-python3 -u ./scripts/enrich_leads.py --sheet_url "SHEET_URL"
-```
-Show summary: X emails found out of Y leads.
+## Instantly Campaign Structure (hardcoded in push_campaign.py)
 
-### 5. Phase 3 — Create Campaign
-After user confirms:
-```bash
-python3 -u ./scripts/create_campaign.py --sheet_url "SHEET_URL" --campaign_name "CAMPAIGN_NAME"
-```
+- Schedule: Mon–Fri, 09:00–18:00, America/Detroit timezone
+- 4-step follow-up sequence (delays: +2d, +1d, +1d, +1d)
+- Subject step 1: `{{firstName}}, quick one`
+- Body: `{{personalization}}` (= full email body from the sheet)
+- Custom variables populated: `Role`, `Job Link`, `Company name`, `LinkedIn_Url`, `Company_Linkedin`, `Decision Maker Title`
+- Settings: text-only, stop on reply, no open/link tracking, daily limit 2500
 
-Use `--dry_run` first if the user wants to preview emails before pushing to Instantly.
+---
 
 ## Environment
+
 ```
-THEIRSTACK_API_KEY=your_jwt
-ANYMAILFINDER_API_KEY=your_key
-INSTANTLY_API_KEY=your_key
-APIFY_API_TOKEN=your_token
-ANTHROPIC_API_KEY=your_key
+THEIRSTACK_API_KEY=...
+ANYMAILFINDER_API_KEY=...
+ANTHROPIC_API_KEY=...
+INSTANTLY_API_KEY=...
 ```
 
-## Google Sheet Columns
-Phase 1 fills: `company_name, job_title, url, posted_date, country, remote, employment_status, seniority, location, description, salary, company_url, company_linkedin_url, company_industry, company_employee_count, company_revenue, company_description, company_city, job_id`
-
-Agent fills: `target_title, target_person_name, target_linkedin_url, uses_agencies, dm_confidence, dm_reasoning`
-
-Phase 2 fills: `email, email_status`
-
-Phase 3 fills: `message, added_to_campaign`
+Google Sheets OAuth token: `.claude/token.json` (set up via `.claude/setup_google_auth.py`)

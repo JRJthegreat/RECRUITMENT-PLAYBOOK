@@ -223,7 +223,7 @@ def get_existing_job_ids(service, sheet_id, tab_name):
     return ids
 
 
-def theirstack_search(api_key, page, days):
+def theirstack_search(api_key, page, days, page_size=None):
     """Search TheirStack for HR job openings. Returns (jobs_list, total_results)."""
     headers = {
         "Accept": "application/json",
@@ -241,7 +241,7 @@ def theirstack_search(api_key, page, days):
         "company_type": "direct_employer",
         "employment_statuses_or": ["full_time"],
         "page": page,
-        "limit": API_PAGE_SIZE,
+        "limit": page_size if page_size is not None else API_PAGE_SIZE,
         "blur_company_data": False,
     }
 
@@ -321,9 +321,9 @@ def job_to_row(job):
 
 
 def append_rows_to_tab(service, sheet_id, tab_name, rows, token_path=None):
-    """Append rows to a specific tab with retry and token refresh."""
+    """Append rows to a specific tab with retry and token refresh. Returns True on success, False on fatal failure."""
     if not rows:
-        return
+        return True
     for attempt in range(3):
         try:
             service.spreadsheets().values().append(
@@ -333,7 +333,7 @@ def append_rows_to_tab(service, sheet_id, tab_name, rows, token_path=None):
                 insertDataOption="INSERT_ROWS",
                 body={"values": rows},
             ).execute()
-            return
+            return True
         except Exception as e:
             is_rate_limit = "429" in str(e) or "RATE_LIMIT" in str(e)
             wait = 30 if is_rate_limit else 2
@@ -347,6 +347,8 @@ def append_rows_to_tab(service, sheet_id, tab_name, rows, token_path=None):
                         pass
             else:
                 print(f"    Sheet write FAILED for tab '{tab_name}': {e}")
+                return False
+    return False
 
 
 def sort_tab(service, sheet_id, tab_gid):
@@ -365,11 +367,13 @@ def sort_tab(service, sheet_id, tab_gid):
 
 
 def main():
+    import math
     parser = argparse.ArgumentParser(description="Scrape HR jobs from TheirStack into Google Sheets")
     parser.add_argument("--sheet_url", required=True, help="Google Sheets URL or ID")
     parser.add_argument("--days", type=int, default=DEFAULT_DAYS, help=f"Max age of job postings in days (default: {DEFAULT_DAYS})")
     parser.add_argument("--limit", type=int, default=0, help="Max total jobs to scrape (0 = all)")
     parser.add_argument("--start_page", type=int, default=0, help="Page number to start from (for resuming)")
+    parser.add_argument("--yes", action="store_true", help="Skip confirmation prompt (for automation)")
     args = parser.parse_args()
 
     # Validate env
@@ -396,6 +400,27 @@ def main():
     print("Loading existing job IDs for deduplication...")
     existing_ids = get_existing_job_ids(service, sheet_id, "Data")
     print(f"  Found {len(existing_ids)} existing jobs")
+
+    # Preview call: get total count before burning credits
+    if args.start_page == 0:
+        print(f"\nChecking TheirStack (US, {MIN_EMPLOYEES}-{MAX_EMPLOYEES} employees, last {args.days} days)...")
+        _, preview_total = theirstack_search(api_key, 0, args.days, page_size=1)
+        pages_needed = math.ceil(preview_total / API_PAGE_SIZE) if preview_total else 0
+        print(f"  TheirStack: {preview_total} matching jobs → {pages_needed} page(s) × {API_PAGE_SIZE}/page")
+
+        if args.limit:
+            limit_pages = math.ceil(args.limit / API_PAGE_SIZE)
+            print(f"  → Will scrape up to {args.limit} jobs ({limit_pages} page(s)) because --limit is set")
+        elif preview_total > API_PAGE_SIZE and not args.yes:
+            try:
+                confirm = input(f"\n  Scrape all {preview_total} jobs? This uses {pages_needed} × API credits. [y/N]: ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                confirm = ""
+            if confirm != "y":
+                print("  Aborted. Re-run with --limit N to cap the scrape.")
+                sys.exit(0)
+        elif args.yes:
+            print(f"  → --yes flag set, proceeding with full scrape")
 
     # Scrape TheirStack — page by page, filter + write each batch immediately
     start_msg = f"\nScraping TheirStack (US, {MIN_EMPLOYEES}-{MAX_EMPLOYEES} employees, posted in last {args.days} days)"
@@ -462,10 +487,16 @@ def main():
             existing_ids.add(job_id)
             rows.append(job_to_row(job))
 
-        # Write to sheet in batches of SHEET_BATCH_SIZE (with 1.5s delay to stay under 60 writes/min)
+        # Write to sheet in batches of SHEET_BATCH_SIZE (1.5s delay to stay under 60 writes/min)
+        # CRITICAL: stop on sheet write failure — don't burn TheirStack credits on rows we can't save
         for i in range(0, len(rows), SHEET_BATCH_SIZE):
             batch = rows[i:i + SHEET_BATCH_SIZE]
-            append_rows_to_tab(service, sheet_id, "Data", batch, token_path)
+            ok = append_rows_to_tab(service, sheet_id, "Data", batch, token_path)
+            if not ok:
+                print(f"\n  *** SHEET WRITE FAILED — stopping to avoid burning TheirStack credits ***")
+                print(f"  *** Data already written is safe. Resume with:")
+                print(f"  ***   --start_page {page}")
+                sys.exit(1)
             if i + SHEET_BATCH_SIZE < len(rows):
                 time.sleep(1.5)
 

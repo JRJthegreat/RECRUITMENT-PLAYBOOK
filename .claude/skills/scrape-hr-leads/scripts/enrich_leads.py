@@ -211,7 +211,7 @@ def main():
     service = get_google_service(token_path)
 
     result = service.spreadsheets().values().get(
-        spreadsheetId=sheet_id, range="Sheet1"
+        spreadsheetId=sheet_id, range="Data"
     ).execute()
     all_rows = result.get("values", [])
     if len(all_rows) < 2:

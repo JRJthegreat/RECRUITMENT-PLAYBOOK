@@ -91,11 +91,10 @@ def list_sending_accounts(api_key):
     return [a["email"] for a in items if a.get("email")]
 
 
-def create_campaign(api_key, name, sending_accounts):
-    """Create campaign matching Reyna_March_17th structure (4-step sequence)."""
+def create_campaign(api_key, name):
+    """Create campaign with 4-step sequence. Sending accounts to be set up manually."""
     payload = {
         "name": name,
-        "email_list": sending_accounts,
         "campaign_schedule": {
             "schedules": [
                 {
@@ -254,11 +253,14 @@ def read_tab_data(service, sheet_id, tab_name):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Push tech leads to Instantly campaigns (3 campaigns by template)")
+    parser = argparse.ArgumentParser(description="Push tech leads to Instantly campaign")
     parser.add_argument("--sheet_url", required=True, help="Google Sheets URL or ID")
-    parser.add_argument("--tab", default="both",
-                        help="Tab(s) to process: 'perm', 'contract', 'both', or comma-separated custom names")
-    parser.add_argument("--dry_run", action="store_true", help="Preview without creating campaigns")
+    parser.add_argument("--tab", default="Data",
+                        help="Tab to process (default: Data), or comma-separated names")
+    parser.add_argument("--campaign_name", default=None, help="Name for new campaign (creates one if no --campaign_id)")
+    parser.add_argument("--campaign_id", default=None, help="Existing campaign ID to push to")
+    parser.add_argument("--limit", type=int, default=0, help="Max leads to push (0 = all)")
+    parser.add_argument("--dry_run", action="store_true", help="Preview without pushing")
     args = parser.parse_args()
 
     api_key = os.getenv("INSTANTLY_API_KEY")
@@ -276,18 +278,10 @@ def main():
     service = get_google_service(token_path)
 
     # Determine tabs
-    tab_arg = args.tab.strip().lower()
-    if tab_arg == "both":
-        tabs_to_process = ["Perm", "Contract"]
-    elif tab_arg == "perm":
-        tabs_to_process = ["Perm"]
-    elif tab_arg == "contract":
-        tabs_to_process = ["Contract"]
-    else:
-        tabs_to_process = [t.strip() for t in args.tab.split(",") if t.strip()]
+    tabs_to_process = [t.strip() for t in args.tab.split(",") if t.strip()]
 
-    # Collect leads from all tabs, grouped by template_variant
-    leads_by_variant = {"perm_a": [], "perm_b": [], "contract": []}
+    # Collect all leads
+    all_leads = []
     tab_indices = {}
 
     for tab_name in tabs_to_process:
@@ -315,6 +309,7 @@ def main():
         idx_result_title = col_idx("result_title")
         idx_added = col_idx("Added to instantly")
         idx_variant = col_idx("template_variant")
+        idx_cleaned_role = col_idx("cleaned_role")
 
         missing = []
         for name, idx in [("email", idx_email), ("Body", idx_body),
@@ -339,14 +334,14 @@ def main():
             added = cell(idx_added)
             variant = cell(idx_variant)
 
-            if not email_addr or email_addr == "not_found" or not body or added or not variant:
+            if not email_addr or email_addr == "not_found" or not body or added:
                 continue
 
             first_name = cell(idx_firstname)
             last_name = cell(idx_lastname)
             company = cell(idx_company)
             job_title = cell(idx_title)
-            role = shorten_role(job_title)
+            role = cell(idx_cleaned_role) if idx_cleaned_role is not None else job_title
             job_link = cell(idx_url)
             company_linkedin = cell(idx_company_linkedin)
             linkedin_url = cell(idx_linkedin)
@@ -374,62 +369,55 @@ def main():
                 },
             }
 
-            if variant in leads_by_variant:
-                leads_by_variant[variant].append(lead_data)
-                tab_count += 1
+            all_leads.append(lead_data)
+            tab_count += 1
+
+            if args.limit and len(all_leads) >= args.limit:
+                break
 
         print(f"  {tab_count} leads ready to push")
 
-    # Summary
-    total = sum(len(v) for v in leads_by_variant.values())
-    if total == 0:
-        print("\nNo leads ready to push (need email + Body + template_variant, not already added)")
+    if not all_leads:
+        print("\nNo leads ready to push (need email + Body, not already added)")
         sys.exit(0)
 
-    print(f"\n{'='*50}")
-    for campaign_name, info in CAMPAIGN_MAP.items():
-        count = len(leads_by_variant[info["variant"]])
-        print(f"  {campaign_name}: {count} leads ({info['variant']})")
-    print(f"  Total: {total}")
-    print(f"{'='*50}")
+    print(f"\nTotal: {len(all_leads)} leads")
 
     # Dry run
     if args.dry_run:
-        print(f"\nDRY RUN — would push to existing campaigns:\n")
-        for campaign_name, info in CAMPAIGN_MAP.items():
-            leads = leads_by_variant[info["variant"]]
-            print(f"  {campaign_name} [{info['id'][:8]}...] ({len(leads)} leads):")
-            for ld in leads[:3]:
-                l = ld["lead"]
-                print(f"    {l['first_name']} {l['last_name']} <{l['email']}> — {l['custom_variables']['Role']}")
-            if len(leads) > 3:
-                print(f"    ... and {len(leads) - 3} more")
-            print()
+        print(f"\nDRY RUN — would push {len(all_leads)} leads:\n")
+        for ld in all_leads[:10]:
+            l = ld["lead"]
+            print(f"  {l['first_name']} {l['last_name']} <{l['email']}> — {l['custom_variables']['Role']}")
+        if len(all_leads) > 10:
+            print(f"  ... and {len(all_leads) - 10} more")
         sys.exit(0)
 
-    # Push leads to existing campaigns
-    for campaign_name, info in CAMPAIGN_MAP.items():
-        variant = info["variant"]
-        campaign_id = info["id"]
-        leads = leads_by_variant[variant]
-        if not leads:
-            print(f"\n  Skipping {campaign_name} — no leads")
-            continue
+    # Get or create campaign
+    campaign_id = args.campaign_id
+    if not campaign_id:
+        campaign_name = args.campaign_name or "Tech Recruitment"
+        print(f"Creating campaign '{campaign_name}'...")
+        campaign_id = create_campaign(api_key, campaign_name)
+        if not campaign_id:
+            print("Error: Failed to create campaign")
+            sys.exit(1)
+        print(f"  Campaign created: {campaign_id}")
+    else:
+        print(f"\nUsing existing campaign: {campaign_id}")
 
-        print(f"\n--- {campaign_name} ({len(leads)} leads) → {campaign_id[:8]}... ---")
-        print(f"  Adding {len(leads)} leads...")
-        added, failed = add_leads_to_campaign(
-            api_key, campaign_id, leads, service, sheet_id, tab_indices
-        )
-        print(f"  Done: {added} added, {failed} failed")
+    # Push leads
+    print(f"\nAdding {len(all_leads)} leads to campaign...")
+    added, failed = add_leads_to_campaign(
+        api_key, campaign_id, all_leads, service, sheet_id, tab_indices
+    )
 
     # Final summary
     print(f"\n{'='*50}")
     print(f"Campaign Push Complete")
-    for campaign_name, info in CAMPAIGN_MAP.items():
-        count = len(leads_by_variant[info["variant"]])
-        if count:
-            print(f"  {campaign_name}: {count} leads → {info['id'][:8]}...")
+    print(f"  Campaign: {campaign_id}")
+    print(f"  Leads added: {added}")
+    print(f"  Failed: {failed}")
     print(f"{'='*50}")
 
 

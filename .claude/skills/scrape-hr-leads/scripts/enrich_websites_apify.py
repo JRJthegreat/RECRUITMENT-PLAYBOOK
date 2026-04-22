@@ -14,7 +14,9 @@ import os
 import re
 import json
 import time
+import argparse
 import requests
+from urllib.parse import urlparse
 from dotenv import load_dotenv
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -29,12 +31,7 @@ APIFY_TOKEN = os.getenv("APIFY_API_TOKEN")
 APIFY_ACTOR = "apify~google-search-scraper"
 APIFY_BASE = "https://api.apify.com/v2"
 
-SHEET_ID = "1jopIsvbAmhxoQmmKXAQTBp1zeujzwOfNAPBsNaCpWqA"  # HR Leads - Apify Final
-TAB = "Leads"
 BATCH = 10
-
-COL_COMPANY_NAME = 10   # K
-COL_COMPANY_WEBSITE = 11  # L
 
 HTTP_HEADERS = {
     "User-Agent": (
@@ -115,16 +112,16 @@ def col_letter(idx):
     return result
 
 
-def flush_updates(service, updates):
+def flush_updates(service, updates, sheet_id, tab, col_website):
     if not updates:
         return
     data = [
-        {"range": f"'{TAB}'!{col_letter(COL_COMPANY_WEBSITE)}{u['sheet_row']}",
+        {"range": f"'{tab}'!{col_letter(col_website)}{u['sheet_row']}",
          "values": [[u["website"]]]}
         for u in updates
     ]
     service.spreadsheets().values().batchUpdate(
-        spreadsheetId=SHEET_ID,
+        spreadsheetId=sheet_id,
         body={"valueInputOption": "RAW", "data": data},
     ).execute()
     print(f"  → Wrote {len(updates)} websites to sheet")
@@ -132,65 +129,97 @@ def flush_updates(service, updates):
 
 # ── Apify Google Search ───────────────────────────────────────────────────────
 
+APIFY_BATCH_SIZE = 50  # queries per Apify call to avoid timeouts
+
+
 def apify_google_search(queries):
     """
     Run Apify Google Search Scraper for a list of queries.
+    Batches into chunks of APIFY_BATCH_SIZE to avoid timeouts.
     Returns dict: query → list of result URLs (organic only).
     """
-    print(f"  Sending {len(queries)} queries to Apify Google Search Scraper...")
+    print(f"  Sending {len(queries)} queries to Apify Google Search Scraper (batches of {APIFY_BATCH_SIZE})...")
 
-    # Run the actor synchronously (wait for results)
-    resp = requests.post(
-        f"{APIFY_BASE}/acts/{APIFY_ACTOR}/run-sync-get-dataset-items",
-        params={"token": APIFY_TOKEN},
-        json={
-            "queries": "\n".join(queries),
-            "resultsPerPage": 5,
-            "maxPagesPerQuery": 1,
-            "languageCode": "en",
-            "countryCode": "us",
-            "includeUnfilteredResults": False,
-        },
-        timeout=300,
-    )
+    all_results = {}
+    for batch_start in range(0, len(queries), APIFY_BATCH_SIZE):
+        batch = queries[batch_start:batch_start + APIFY_BATCH_SIZE]
+        batch_num = batch_start // APIFY_BATCH_SIZE + 1
+        total_batches = (len(queries) + APIFY_BATCH_SIZE - 1) // APIFY_BATCH_SIZE
+        print(f"\n  Batch {batch_num}/{total_batches} ({len(batch)} queries)...")
 
-    if resp.status_code not in (200, 201):
-        print(f"  ERROR from Apify: HTTP {resp.status_code}: {resp.text[:300]}")
-        return {}
+        resp = requests.post(
+            f"{APIFY_BASE}/acts/{APIFY_ACTOR}/run-sync-get-dataset-items",
+            params={"token": APIFY_TOKEN},
+            json={
+                "queries": "\n".join(batch),
+                "resultsPerPage": 5,
+                "maxPagesPerQuery": 1,
+                "languageCode": "en",
+                "countryCode": "us",
+                "includeUnfilteredResults": False,
+            },
+            timeout=300,
+        )
 
-    items = resp.json()
-    results = {}
-    for item in items:
-        query = item.get("searchQuery", {}).get("term", "")
-        organic = item.get("organicResults", [])
-        urls = []
-        for r in organic:
-            url = r.get("url", "")
-            if url:
-                domain = re.sub(r"^https?://(www\.)?", "", url).split("/")[0].lower()
-                if not any(skip in domain for skip in SKIP_DOMAINS):
-                    urls.append(url)
-        if query and urls:
-            results[query] = urls
+        if resp.status_code not in (200, 201):
+            print(f"  ERROR from Apify: HTTP {resp.status_code}: {resp.text[:300]}")
+            continue
 
-    print(f"  Got results for {len(results)}/{len(queries)} queries")
-    return results
+        items = resp.json()
+        for item in items:
+            query = item.get("searchQuery", {}).get("term", "")
+            organic = item.get("organicResults", [])
+            urls = []
+            for r in organic:
+                url = r.get("url", "")
+                if url:
+                    domain = re.sub(r"^https?://(www\.)?", "", url).split("/")[0].lower()
+                    if not any(skip in domain for skip in SKIP_DOMAINS):
+                        urls.append(url)
+            if query and urls:
+                all_results[query] = urls
+
+        print(f"  Batch {batch_num} done — {len(all_results)} total results so far")
+
+    print(f"\n  Got results for {len(all_results)}/{len(queries)} queries total")
+    return all_results
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+def get_sheet_id_from_url(url):
+    parsed = urlparse(url)
+    if "docs.google.com" in parsed.netloc:
+        parts = parsed.path.split("/")
+        if "d" in parts:
+            return parts[parts.index("d") + 1]
+    return url
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Enrich missing company websites via Apify Google Search")
+    parser.add_argument("--sheet_url", default="1jopIsvbAmhxoQmmKXAQTBp1zeujzwOfNAPBsNaCpWqA", help="Google Sheet URL or ID")
+    parser.add_argument("--tab", default="Leads", help="Tab name")
+    parser.add_argument("--col_company_name", type=int, default=10, help="0-indexed column for company name")
+    parser.add_argument("--col_company_url", type=int, default=11, help="0-indexed column for company URL/website")
+    args = parser.parse_args()
+
+    SHEET_ID = get_sheet_id_from_url(args.sheet_url)
+    TAB = args.tab
+    COL_COMPANY_NAME = args.col_company_name
+    COL_COMPANY_WEBSITE = args.col_company_url
+
     if not APIFY_TOKEN:
         print("ERROR: APIFY_API_TOKEN not set in .env")
         return
 
-    print("=== Enrich Websites (Apify Google Search Fallback) ===\n")
+    print("=== Enrich Websites (Apify Google Search) ===\n")
     service = get_google_service()
 
     # Read sheet — find rows still missing a website
     print("[1/3] Reading sheet for remaining gaps...")
     result = service.spreadsheets().values().get(
-        spreadsheetId=SHEET_ID, range=f"'{TAB}'!A:AA"
+        spreadsheetId=SHEET_ID, range=f"'{TAB}'!A:AZ"
     ).execute()
     data = result.get("values", [])[1:]
 
@@ -239,11 +268,11 @@ def main():
             not_found += 1
 
         if len(updates) >= BATCH:
-            flush_updates(service, updates)
+            flush_updates(service, updates, SHEET_ID, TAB, COL_COMPANY_WEBSITE)
             updates = []
 
     if updates:
-        flush_updates(service, updates)
+        flush_updates(service, updates, SHEET_ID, TAB, COL_COMPANY_WEBSITE)
 
     print(f"\n[3/3] Summary")
     print(f"  Found:     {found} / {len(targets)}")

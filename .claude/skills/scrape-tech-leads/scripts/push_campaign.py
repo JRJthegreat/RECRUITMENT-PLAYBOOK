@@ -27,11 +27,10 @@ load_dotenv(ENV_PATH)
 
 INSTANTLY_BASE = "https://api.instantly.ai/api/v2"
 
-# Campaign name → (template_variant, existing_campaign_id)
+# template_variant → campaign_id
 CAMPAIGN_MAP = {
-    "Eric_Perm A": {"variant": "perm_a", "id": "2bf67ce2-e154-49ad-baad-b2e16faa28c8"},
-    "Eric_Perm B": {"variant": "perm_b", "id": "6bc6309e-a6d9-4d10-8e70-b1b3f07ab866"},
-    "Contractors": {"variant": "contract", "id": "16046db5-17e0-41e7-af73-2e2eb0543e42"},
+    "perm_a": "26c497f9-44c8-43bd-ba5f-a0ac4e8edaef",
+    "perm_b": "b1ed193b-e892-4f57-942c-0bb185ddf144",
 }
 
 
@@ -383,41 +382,49 @@ def main():
 
     print(f"\nTotal: {len(all_leads)} leads")
 
+    # Group leads by variant
+    from collections import defaultdict
+    leads_by_variant = defaultdict(list)
+    for ld in all_leads:
+        leads_by_variant[ld["variant"]].append(ld)
+
     # Dry run
     if args.dry_run:
         print(f"\nDRY RUN — would push {len(all_leads)} leads:\n")
+        for variant, vleads in leads_by_variant.items():
+            cid = CAMPAIGN_MAP.get(variant, "(no campaign mapped)")
+            print(f"  {variant}: {len(vleads)} leads → campaign {cid}")
+        print()
         for ld in all_leads[:10]:
             l = ld["lead"]
-            print(f"  {l['first_name']} {l['last_name']} <{l['email']}> — {l['custom_variables']['Role']}")
+            print(f"  [{ld['variant']}] {l['first_name']} {l['last_name']} <{l['email']}> — {l['custom_variables']['Role']}")
         if len(all_leads) > 10:
             print(f"  ... and {len(all_leads) - 10} more")
         sys.exit(0)
 
-    # Get or create campaign
-    campaign_id = args.campaign_id
-    if not campaign_id:
-        campaign_name = args.campaign_name or "Tech Recruitment"
-        print(f"Creating campaign '{campaign_name}'...")
-        campaign_id = create_campaign(api_key, campaign_name)
+    # Push each variant to its campaign
+    total_added = total_failed = 0
+    for variant, variant_leads in leads_by_variant.items():
+        campaign_id = args.campaign_id or CAMPAIGN_MAP.get(variant)
         if not campaign_id:
-            print("Error: Failed to create campaign")
-            sys.exit(1)
-        print(f"  Campaign created: {campaign_id}")
-    else:
-        print(f"\nUsing existing campaign: {campaign_id}")
+            print(f"\nWarning: No campaign mapped for variant '{variant}' — skipping {len(variant_leads)} leads")
+            continue
 
-    # Push leads
-    print(f"\nAdding {len(all_leads)} leads to campaign...")
-    added, failed = add_leads_to_campaign(
-        api_key, campaign_id, all_leads, service, sheet_id, tab_indices
-    )
+        print(f"\nPushing {len(variant_leads)} '{variant}' leads to campaign {campaign_id}...")
+        added, failed = add_leads_to_campaign(
+            api_key, campaign_id, variant_leads, service, sheet_id, tab_indices
+        )
+        total_added += added
+        total_failed += failed
 
     # Final summary
     print(f"\n{'='*50}")
     print(f"Campaign Push Complete")
-    print(f"  Campaign: {campaign_id}")
-    print(f"  Leads added: {added}")
-    print(f"  Failed: {failed}")
+    for variant, vleads in leads_by_variant.items():
+        cid = CAMPAIGN_MAP.get(variant, "(unmapped)")
+        print(f"  {variant}: {len(vleads)} leads → {cid}")
+    print(f"  Total added: {total_added}")
+    print(f"  Total failed: {total_failed}")
     print(f"{'='*50}")
 
 

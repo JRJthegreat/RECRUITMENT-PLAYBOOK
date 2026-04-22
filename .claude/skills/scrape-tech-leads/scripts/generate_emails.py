@@ -37,62 +37,8 @@ PROOF_COMPANIES = ["GBST", "Unit4", "Casca", "ZOPA"]
 
 SYSTEM_PROMPT = "You are an amazing email copywriter for B2B outreach."
 
-# --- Template A: Pain point led, multiple candidates ---
+# --- Template A: Single candidate, location-specific, just became available ---
 PROMPT_PERM_A = """You are writing outbound emails for a tech recruitment connector, helping a recruiter place tech talent in European companies.
-
-Your role is to fill in the variables in this template and personalize it based on the job posting data provided.
-
-TEMPLATE:
-Noticed {{COMPANY_NAME}} has a {{ROLE_TITLE}} role posted.
-
-I might be off base, but I'd guess this is being handled through internal recruiting and inbound applicants, which can make the hiring timeline harder to predict.
-
-I work with a tech recruiter who's placed multiple {{ROLE_TITLE_PLURAL}} in companies across Europe, such as {{PROOF_COMPANY_1}} and {{PROOF_COMPANY_2}}. He has a few pre vetted {{ROLE_TITLE_PLURAL}} with {{SPECIALTY_1}} and {{SPECIALTY_2}} experience ready to go.
-
-RULES:
-1. Tone: casual bar conversation, very spartan. No fancy language.
-2. CLEAN and SHORTEN the role title:
-   a. If the title is in a non-English language (German, French, Finnish, Dutch, etc.), TRANSLATE it to English first.
-   b. Strip gender tags: (m/w/d), (f/m/d), (H/F), (F/M/D), (m/f/x), (H/F/X), (w/m/d), etc.
-   c. Strip location/salary suffixes: "– Munich", "| Schweiz", "(£60k + benefits)", "/ Freelance", "– Alternance"
-   d. Strip brackets noise: "[KHOME]", emojis, numbering prefixes, team names
-   e. Shorten to how a recruiter would actually say it in conversation. Examples:
-   - "Senior Natural Language Processing Engineer" → "Senior NLP Engineer"
-   - "Machine Learning Engineer - Computer Vision" → "ML Engineer"
-   - "Lead Data Engineer (Cloud Platform)" → "Lead Data Engineer"
-   - "Solutions Architect - Enterprise" → "Solutions Architect"
-   - "Blockchain Smart Contract Developer" → "Smart Contract Developer"
-   - "Ingénieur Data Scientist" → "Data Scientist"
-   - "Referent der Geschäftsführung CTO – IT Strategie (m/w/d)" → "CTO"
-   - "Ingénieur SRE / DevOps PostgreSQL (H/F)" → "SRE / DevOps Engineer"
-3. ROLE_TITLE_PLURAL: Pluralize the shortened role title (e.g., "NLP Engineers", "ML Engineers").
-4. PROOF_COMPANY_1 and PROOF_COMPANY_2: Pick the 2 most relevant companies from this list based on the target company's industry: {proof_companies}. If none are a great fit, pick the 2 that are closest.
-5. SPECIALTY_1 and SPECIALTY_2: These are the MOST IMPORTANT part of the email. Read the job description carefully and find the 2 things that make this hire HARD TO FILL. What specific, niche requirement would make the hiring manager think "we've been struggling to find someone with exactly this"?
-   - Look for: specific frameworks/tools (PyTorch, Kubernetes, Terraform), niche domains (real-time NLP pipelines, smart contract auditing, MLOps at scale), rare combinations (Solidity + DeFi protocol design), scale challenges (processing 10M+ events/day), certifications, or uncommon skill combos.
-   - BAD examples (too generic): "Python", "team management", "cloud computing", "agile", "AI", "data experience", "Java skills", "fintech experience"
-   - GOOD examples (specific pain points): "real-time NLP pipelines at scale", "Kubernetes multi-cluster orchestration", "Solidity smart contract auditing", "MLOps pipeline automation with Kubeflow", "data lake architecture on Databricks", "Kafka event streaming at high throughput", "computer vision with YOLO"
-   - If the job description is vague, infer from the company context what would be hard to find.
-7. CLEAN the company name. Strip legal suffixes, geographic tags, and generic words to get the casual version. Examples:
-   - "TechCorp International Ltd" → "TechCorp"
-   - "Alpine Solutions Group" → "Alpine"
-   - "DataWorks Technologies GmbH" → "DataWorks"
-   Remove: Inc, LLC, Corp, Ltd, Co., GmbH, AG, SA, BV, Group, Services, Solutions, Holdings, International, Technologies, "The" prefix.
-   IMPORTANT: If the company name is in ALL CAPS, convert it to proper Title Case (e.g., "THALES GROUP" → "Thales", "SCOTTISH POWER" → "Scottish Power"). Short acronyms (2-4 chars like KLA, N26) can stay uppercase.
-8. No exclamation points. No em dashes. Use commas instead.
-9. Keep proper capitalization for names and titles.
-10. Respond in JSON only: {{"body": "the email body here"}}
-
-INPUT:
-Company: {company_name}
-Role: {job_title}
-Location: {job_location}
-Industry: {company_industry}
-Company Description: {company_description}
-Job Description (first 1000 chars): {job_description}
-"""
-
-# --- Template B: Urgency led, single candidate ---
-PROMPT_PERM_B = """You are writing outbound emails for a tech recruitment connector, helping a recruiter place tech talent in European companies.
 
 Your role is to fill in the variables in this template and personalize it based on the job posting data provided.
 
@@ -115,21 +61,70 @@ RULES:
    - "Machine Learning Engineer - Computer Vision" → "ML Engineer"
    - "Lead Data Engineer (Cloud Platform)" → "Lead Data Engineer"
    - "Solutions Architect - Enterprise" → "Solutions Architect"
+   - "Blockchain Smart Contract Developer" → "Smart Contract Developer"
    - "Ingénieur Data Scientist" → "Data Scientist"
-   - "DevOps Engineer (m/w/d) für die App Factory" → "DevOps Engineer"
-3. LOCATION: Use the job location provided. If the job is remote or location is unclear, OMIT the location entirely — write "who has a {{ROLE_TITLE}} who just became available" instead of "who has a {{LOCATION}} based {{ROLE_TITLE}}...".
+   - "Referent der Geschäftsführung CTO – IT Strategie (m/w/d)" → "CTO"
+   - "Ingénieur SRE / DevOps PostgreSQL (H/F)" → "SRE / DevOps Engineer"
+3. LOCATION: Use the job location city (e.g., "Zurich", "Berlin", "Amsterdam"). If remote or unknown, use the country name.
 4. YEARS: Use the years of experience required in the job description + 2 years. If not stated, estimate for the role level + 2.
-5. INDUSTRY: The target industry vertical (e.g., "fintech", "healthtech", "SaaS").
-6. SPECIALTY_1 and SPECIALTY_2: These are the MOST IMPORTANT part of the email. Read the job description carefully and find the 2 things that make this hire HARD TO FILL. What specific, niche requirement would make the hiring manager think "we've been struggling to find someone with exactly this"?
-   - Look for: specific frameworks/tools (PyTorch, Kubernetes, Terraform), niche domains (real-time NLP pipelines, smart contract auditing, MLOps at scale), rare combinations (Solidity + DeFi protocol design), scale challenges (processing 10M+ events/day), certifications, or uncommon skill combos.
-   - BAD examples (too generic): "Python", "team management", "cloud computing", "agile"
-   - GOOD examples (specific pain points): "real-time NLP pipelines at scale", "Kubernetes multi-cluster orchestration", "Solidity smart contract auditing", "MLOps pipeline automation with Kubeflow", "data lake architecture on Databricks"
+5. INDUSTRY: The target industry vertical (e.g., "fintech", "healthtech", "SaaS", "autonomous systems").
+6. SPECIALTY_1 and SPECIALTY_2: The 2 things that make this hire HARD TO FILL. Read the job description carefully.
+   - Look for: specific frameworks/tools (PyTorch, Kubernetes, Terraform), niche domains (real-time NLP pipelines, smart contract auditing, MLOps at scale), rare combinations, scale challenges, or uncommon skill combos.
+   - BAD examples (too generic): "Python", "team management", "cloud computing", "agile", "AI", "data experience"
+   - GOOD examples: "real-time NLP pipelines at scale", "Kubernetes multi-cluster orchestration", "Solidity smart contract auditing", "MLOps pipeline automation with Kubeflow", "Kafka event streaming at high throughput", "computer vision with YOLO"
    - If the job description is vague, infer from the company context what would be hard to find.
-7. CLEAN the company name. Strip legal suffixes, geographic tags, and generic words. Remove: Inc, LLC, Corp, Ltd, Co., GmbH, AG, SA, BV, Group, Services, Solutions, Holdings, International, Technologies, "The" prefix.
+7. CLEAN the company name. Strip legal suffixes, geographic tags, and generic words to get the casual version.
+   Remove: Inc, LLC, Corp, Ltd, Co., GmbH, AG, SA, BV, Group, Services, Solutions, Holdings, International, Technologies, "The" prefix.
+   IMPORTANT: If the company name is in ALL CAPS, convert it to proper Title Case (e.g., "THALES GROUP" → "Thales"). Short acronyms (2-4 chars like KLA, N26) can stay uppercase.
 8. No exclamation points. No em dashes. Use commas instead.
 9. Keep proper capitalization for names and titles.
-10. Use correct grammar: "an" before vowel sounds (an Engineering Manager, an AI Engineer), "a" before consonant sounds (a Senior Engineer, a CTO).
-11. Respond in JSON only: {{"body": "the email body here", "cleaned_role": "the cleaned and shortened role title"}}. The cleaned_role should be the final role title you used in the email body.
+10. Keep "Open to interviewing this week if filling this role is urgent." exactly as written.
+11. Respond in JSON only: {{"body": "the email body here", "cleaned_role": "the cleaned and shortened role title"}}
+
+INPUT:
+Company: {company_name}
+Role: {job_title}
+Location: {job_location}
+Industry: {company_industry}
+Company Description: {company_description}
+Job Description (first 1000 chars): {job_description}
+"""
+
+# --- Template B: Urgency led, single candidate ---
+PROMPT_PERM_B = """You are writing outbound emails for a tech recruitment connector, helping a recruiter place tech talent in European companies.
+
+Your role is to fill in the variables in this template and personalize it based on the job posting data provided.
+
+TEMPLATE:
+Noticed {{COMPANY_NAME}} has a {{ROLE_TITLE}} role posted.
+
+I might be off base, but I'd guess most of this is being handled through internal recruiting and inbound applicants, which can make hiring timelines harder to predict.
+
+I sometimes connect hiring teams already opening {{ROLE_TITLE_PLURAL}} with recruiters placing similar roles, so searches tend to move a lot faster with less delay.
+
+I'm curious on whether hiring this {{ROLE_TITLE}} is a priority over the next 15-30 days, or if this is more exploratory right now?
+
+RULES:
+1. Tone: casual bar conversation, very spartan. No fancy language.
+2. CLEAN and SHORTEN the role title:
+   a. If the title is in a non-English language (German, French, Finnish, Dutch, etc.), TRANSLATE it to English first.
+   b. Strip gender tags: (m/w/d), (f/m/d), (H/F), (F/M/D), (m/f/x), (H/F/X), (w/m/d), etc.
+   c. Strip location/salary suffixes: "– Munich", "| Schweiz", "(£60k + benefits)", "/ Freelance", "– Alternance"
+   d. Strip brackets noise: "[KHOME]", emojis, numbering prefixes, team names
+   e. Shorten to how a recruiter would actually say it in conversation. Examples:
+   - "Senior Natural Language Processing Engineer" → "Senior NLP Engineer"
+   - "Machine Learning Engineer - Computer Vision" → "ML Engineer"
+   - "Lead Data Engineer (Cloud Platform)" → "Lead Data Engineer"
+   - "Solutions Architect - Enterprise" → "Solutions Architect"
+   - "Ingénieur Data Scientist" → "Data Scientist"
+   - "DevOps Engineer (m/w/d) für die App Factory" → "DevOps Engineer"
+3. ROLE_TITLE_PLURAL: Pluralize the shortened role title (e.g., "NLP Engineers", "ML Engineers").
+4. CLEAN the company name. Strip legal suffixes, geographic tags, and generic words. Remove: Inc, LLC, Corp, Ltd, Co., GmbH, AG, SA, BV, Group, Services, Solutions, Holdings, International, Technologies, "The" prefix.
+   IMPORTANT: If the company name is in ALL CAPS, convert it to proper Title Case. Short acronyms (2-4 chars like KLA, N26) can stay uppercase.
+5. No exclamation points. No em dashes. Use commas instead.
+6. Keep proper capitalization for names and titles.
+7. Use correct grammar: "an" before vowel sounds (an Engineering Manager, an AI Engineer), "a" before consonant sounds (a Senior Engineer, a CTO).
+8. Respond in JSON only: {{"body": "the email body here", "cleaned_role": "the cleaned and shortened role title"}}. The cleaned_role should be the final role title you used in the email body.
 
 INPUT:
 Company: {company_name}
@@ -256,7 +251,6 @@ def generate_email(client, lead, retry=0):
 
     if template == "perm_a":
         prompt = PROMPT_PERM_A.format(
-            proof_companies=", ".join(PROOF_COMPANIES),
             company_name=company_name,
             job_title=lead["job_title"],
             job_location=lead["job_location"],
@@ -495,7 +489,7 @@ def main():
 
             first_name, last_name = split_name(person_name)
 
-            template = "perm_b"
+            template = "perm_a" if len(all_leads) % 2 == 0 else "perm_b"
             greeting = f"Hi {first_name}\n\n"
 
             all_leads.append({

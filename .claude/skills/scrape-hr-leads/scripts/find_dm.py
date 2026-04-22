@@ -14,6 +14,7 @@ Both passes write to sheet in batches of 10 with 1.5s delay (60 writes/min limit
 
 import os
 import sys
+import re
 import json
 import argparse
 import time
@@ -61,10 +62,16 @@ MID_HR_TITLES = [
 
 
 def parse_employee_count(count_str):
-    """Parse employee count range string to an integer (use upper bound)."""
+    """Parse employee count range string to an integer (use upper bound).
+    Handles formats: '201-500', '201 to 500', '10,000+', '500'
+    """
     if not count_str:
         return None
     s = str(count_str).strip().replace(",", "").replace("+", "")
+    # Normalise "201 to 500" → "201-500"
+    s = re.sub(r"\s+to\s+", "-", s, flags=re.IGNORECASE)
+    # Strip trailing non-numeric words (e.g. "employees")
+    s = re.sub(r"[^\d\-].*$", "", s).strip()
     parts = s.split("-")
     try:
         if len(parts) == 2:
@@ -296,7 +303,7 @@ def write_batch_to_sheet(service, sheet_id, updates, token_path, batch_num=None)
 
 def run_pass(api_key, leads, pass_name, mode, service, sheet_id,
              idx_person, idx_result_title, idx_linkedin, idx_email,
-             idx_dm_confidence, idx_dm_reasoning, token_path):
+             idx_dm_confidence, idx_dm_reasoning, token_path, tab_name="Data"):
     """
     Run a processing pass over a list of leads and write results to sheet.
 
@@ -376,7 +383,7 @@ def run_pass(api_key, leads, pass_name, mode, service, sheet_id,
                 if row_updates:
                     for col_index, value in row_updates.items():
                         batch_updates.append({
-                            "range": f"'Data'!{col_letter(col_index)}{lead['row_num']}",
+                            "range": f"'{tab_name}'!{col_letter(col_index)}{lead['row_num']}",
                             "values": [[value]],
                         })
 
@@ -414,9 +421,16 @@ def main():
     sheet_id = get_sheet_id_from_url(args.sheet_url)
     service = get_google_service(token_path)
 
-    # Read all data from Data tab
+    # Detect tab — try "Data" first (standard pipeline), fall back to "Leads" (Apify import)
+    tab_name = "Data"
+    meta = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+    tab_titles = [s["properties"]["title"] for s in meta.get("sheets", [])]
+    if "Data" not in tab_titles and "Leads" in tab_titles:
+        tab_name = "Leads"
+    print(f"  Using tab: '{tab_name}'")
+
     result = service.spreadsheets().values().get(
-        spreadsheetId=sheet_id, range="Data"
+        spreadsheetId=sheet_id, range=tab_name
     ).execute()
     all_rows = result.get("values", [])
     if len(all_rows) < 2:
@@ -425,11 +439,27 @@ def main():
 
     headers = all_rows[0]
 
-    def col_idx(name):
-        try:
-            return headers.index(name)
-        except ValueError:
-            return None
+    # Column aliases — maps canonical name → list of alternates to try
+    COLUMN_ALIASES = {
+        "person_name":           ["person_name", "DM Name"],
+        "result_title":          ["result_title", "DM Title"],
+        "linkedin_url":          ["linkedin_url", "LinkedIn URL"],
+        "email":                 ["email", "Email"],
+        "company name":          ["company name", "Company Name"],
+        "job_title":             ["job_title", "Job Title"],
+        "company_url":           ["company_url", "Company Website"],
+        "company_employee_count":["company_employee_count", "Company Size"],
+        "dm_confidence":         ["dm_confidence"],
+        "dm_reasoning":          ["dm_reasoning"],
+    }
+
+    def col_idx(canonical):
+        for alias in COLUMN_ALIASES.get(canonical, [canonical]):
+            try:
+                return headers.index(alias)
+            except ValueError:
+                continue
+        return None
 
     idx_person = col_idx("person_name")
     idx_result_title = col_idx("result_title")
@@ -521,7 +551,7 @@ def main():
             api_key, pass1_leads, "Pass 1 (DM lookup)", "dm",
             service, sheet_id,
             idx_person, idx_result_title, idx_linkedin, idx_email,
-            idx_dm_confidence, idx_dm_reasoning, token_path,
+            idx_dm_confidence, idx_dm_reasoning, token_path, tab_name,
         )
 
     if args.no_retry:
@@ -532,7 +562,7 @@ def main():
     # ── PASS 2: Re-read sheet to find retry candidates ───────────────────────
     print("\nRe-reading sheet for Pass 2 retry candidates...")
     result2 = service.spreadsheets().values().get(
-        spreadsheetId=sheet_id, range="Data"
+        spreadsheetId=sheet_id, range=tab_name
     ).execute()
     all_rows2 = result2.get("values", [])
 
@@ -593,7 +623,7 @@ def main():
             api_key, person_retry, "Pass 2a (person email lookup)", "person",
             service, sheet_id,
             idx_person, idx_result_title, idx_linkedin, idx_email,
-            idx_dm_confidence, idx_dm_reasoning, token_path,
+            idx_dm_confidence, idx_dm_reasoning, token_path, tab_name,
         )
 
     # ── PASS 2b: Flip DM category for no-match leads ────────────────────────
@@ -603,7 +633,7 @@ def main():
             api_key, dm_retry, "Pass 2b (flipped DM category)", "dm",
             service, sheet_id,
             idx_person, idx_result_title, idx_linkedin, idx_email,
-            idx_dm_confidence, idx_dm_reasoning, token_path,
+            idx_dm_confidence, idx_dm_reasoning, token_path, tab_name,
         )
 
     print_summary(p1_email, p1_no_email, p1_not_found,

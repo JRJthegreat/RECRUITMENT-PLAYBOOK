@@ -1,8 +1,8 @@
 """
-Phase 1: Scrape tech job openings from TheirStack → Google Sheets (Perm only)
+Phase 1: Scrape tech job openings from TheirStack → Google Sheets (Gulf region)
 
-Calls TheirStack API for European tech roles, filters out contract/temp positions,
-deduplicates against existing sheet data, and appends to the Perm tab.
+Calls TheirStack API for UAE + Saudi Arabia tech roles, filters out contract/temp positions,
+deduplicates against existing sheet data, and appends to the Data tab.
 """
 
 import os
@@ -25,11 +25,17 @@ load_dotenv(ENV_PATH)
 
 # Constants
 THEIRSTACK_URL = "https://api.theirstack.com/v1/jobs/search"
-API_PAGE_SIZE = 10        # Results per TheirStack API call
+API_PAGE_SIZE = 500       # Max results per TheirStack API call (paid plan limit)
 SHEET_BATCH_SIZE = 10     # Write to Google Sheets in small batches to avoid failures
-DEFAULT_DAYS = 10
+DEFAULT_DAYS = 7
 RETRY_LIMIT = 3
 RETRY_DELAY = 2
+
+# Gulf region countries
+GULF_LOCATIONS = [
+    {"id": 290557},   # United Arab Emirates
+    {"id": 102358},   # Saudi Arabia
+]
 
 # Keywords that indicate a company IS a staffing/recruitment firm (skip these)
 STAFFING_KEYWORDS = [
@@ -84,23 +90,6 @@ def job_seniority_score(job_title):
     return best
 
 
-def dedup_by_company(jobs):
-    """Keep only the highest-value job per company."""
-    best_per_company = {}  # company_name_lower → (score, job)
-    for job in jobs:
-        company = (job.get("company") or "").strip().lower()
-        if not company:
-            continue
-        score = job_seniority_score(job.get("job_title", ""))
-        existing = best_per_company.get(company)
-        if not existing or score > existing[0]:
-            best_per_company[company] = (score, job)
-
-    kept = [item[1] for item in best_per_company.values()]
-    removed = len(jobs) - len(kept)
-    return kept, removed
-
-
 # Tech job titles to search on TheirStack — client's niche roles only
 TECH_JOB_TITLES = [
     # NLP / NLU
@@ -133,54 +122,11 @@ TECH_JOB_TITLES = [
 
 # Extended keywords for job_description_contains_or (superset of titles + extras)
 TECH_DESCRIPTION_KEYWORDS = TECH_JOB_TITLES + [
-    # Original extras
     "Fintech", "Azure Ops", "Chief Technology Officer",
-    "head of engineering", "VP of engineering", "Quantum Computing",
+    "head of engineerig", "VP of engineering", "Quantum Computing",
+    # Catch roles by tech stack / domain in description
     "LLM", "large language model", "GenAI", "generative AI",
     "PyTorch", "TensorFlow", "computer vision",
-    # AI/ML frameworks & concepts
-    "Hugging Face", "scikit-learn", "XGBoost", "JAX", "ONNX",
-    "transformer", "neural network", "fine-tuning", "RAG",
-    "vector database", "embeddings", "diffusion model",
-    "reinforcement learning", "natural language processing",
-    # AI/ML models & techniques
-    "GPT", "BERT", "LLaMA", "foundation model", "multimodal",
-    "prompt engineering", "model serving", "model deployment", "inference",
-    "training pipeline", "feature store", "recommendation system",
-    "anomaly detection", "time series", "forecasting", "NLP pipeline",
-    "AI infrastructure", "AI platform", "stable diffusion",
-    # Cloud & infra
-    "Kubernetes", "Docker", "Terraform", "AWS", "GCP", "Azure",
-    "cloud infrastructure", "distributed systems",
-    "CloudFormation", "Helm", "GitOps", "CI/CD",
-    "infrastructure as code", "microservices", "serverless",
-    "event-driven", "site reliability", "observability",
-    "Prometheus", "Grafana", "Jenkins", "GitHub Actions", "DevSecOps",
-    # Data stack
-    "Apache Spark", "Kafka", "dbt", "Airflow", "Snowflake", "data pipeline",
-    "data platform", "data infrastructure", "streaming data",
-    "BigQuery", "Redshift", "Databricks", "ClickHouse", "Delta Lake",
-    "data lake", "data warehouse", "real-time analytics",
-    "Apache Flink", "data mesh", "data engineering",
-    # Web3 / blockchain
-    "DeFi", "smart contract", "Ethereum", "Solidity", "Web3",
-    # Languages & frameworks
-    "Python", "Golang", "Rust", "TypeScript", "Scala", "C++",
-    "FastAPI", "gRPC", "GraphQL",
-    # Systems & architecture
-    "distributed computing", "high performance computing", "low latency",
-    "system design", "scalable architecture", "backend architecture",
-    "API design", "event streaming",
-    # Databases & storage
-    "Redis", "PostgreSQL", "Elasticsearch", "vector store", "Pinecone", "Weaviate",
-    # Engineering leadership
-    "engineering leadership", "technical leadership", "head of software",
-    "VP of product", "Director of Engineering",
-    # Security & compliance
-    "security engineer", "cloud security",
-    # Domains
-    "healthtech", "proptech", "insurtech", "regtech", "edtech",
-    "SaaS platform", "B2B SaaS",
 ]
 
 # Keywords for contract classification (title + description scan)
@@ -323,7 +269,7 @@ def classify_employment_type(job):
 
 
 def theirstack_search(api_key, page, days):
-    """Search TheirStack for tech job openings in selected European countries. Returns (jobs_list, total_results)."""
+    """Search TheirStack for tech job openings in UAE + Saudi Arabia. Returns (jobs_list, total_results)."""
     headers = {
         "Accept": "application/json",
         "Authorization": f"Bearer {api_key}",
@@ -331,27 +277,12 @@ def theirstack_search(api_key, page, days):
     payload = {
         "include_total_results": True,
         "posted_at_max_age_days": days,
-        "job_location_or": [
-            {"id": 2623032},   # Denmark
-            {"id": 2629691},   # Iceland
-            {"id": 2635167},   # United Kingdom
-            {"id": 2658434},   # Switzerland
-            {"id": 2661886},   # Sweden
-            {"id": 2750405},   # Netherlands
-            {"id": 2782113},   # Austria
-            {"id": 2802361},   # Belgium
-            {"id": 2921044},   # Germany
-            {"id": 2960313},   # Luxembourg
-            {"id": 2963597},   # Liechtenstein
-            {"id": 3017382},   # France
-            {"id": 3144096},   # Norway
-            {"id": 660013},    # Finland
-        ],
+        "job_location_or": GULF_LOCATIONS,
         "job_title_pattern_or": TECH_JOB_TITLES,
         "job_title_not": ["Intern", "Graduate", "junior"],
         "company_type": "direct_employer",
         "job_description_contains_or": TECH_DESCRIPTION_KEYWORDS,
-        "min_employee_count_or_null": 10,
+        "min_employee_count_or_null": 1,
         "max_employee_count_or_null": 500,
         "industry_id_not": [104],
         "page": page,
@@ -406,27 +337,12 @@ def count_check(api_key, days):
     payload = {
         "include_total_results": True,
         "posted_at_max_age_days": days,
-        "job_location_or": [
-            {"id": 2623032},   # Denmark
-            {"id": 2629691},   # Iceland
-            {"id": 2635167},   # United Kingdom
-            {"id": 2658434},   # Switzerland
-            {"id": 2661886},   # Sweden
-            {"id": 2750405},   # Netherlands
-            {"id": 2782113},   # Austria
-            {"id": 2802361},   # Belgium
-            {"id": 2921044},   # Germany
-            {"id": 2960313},   # Luxembourg
-            {"id": 2963597},   # Liechtenstein
-            {"id": 3017382},   # France
-            {"id": 3144096},   # Norway
-            {"id": 660013},    # Finland
-        ],
+        "job_location_or": GULF_LOCATIONS,
         "job_title_pattern_or": TECH_JOB_TITLES,
         "job_title_not": ["Intern", "Graduate", "junior"],
         "company_type": "direct_employer",
         "job_description_contains_or": TECH_DESCRIPTION_KEYWORDS,
-        "min_employee_count_or_null": 10,
+        "min_employee_count_or_null": 1,
         "max_employee_count_or_null": 500,
         "industry_id_not": [104],
         "page": 0,
@@ -535,7 +451,7 @@ def sort_tab(service, sheet_id, tab_gid):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Scrape tech jobs from TheirStack into Google Sheets (Perm only)")
+    parser = argparse.ArgumentParser(description="Scrape tech jobs from TheirStack (UAE + Saudi Arabia) into Google Sheets")
     parser.add_argument("--sheet_url", required=True, help="Google Sheets URL or ID")
     parser.add_argument("--days", type=int, default=DEFAULT_DAYS, help=f"Max age of job postings in days (default: {DEFAULT_DAYS})")
     parser.add_argument("--limit", type=int, default=0, help="Max total jobs to scrape (0 = all)")
@@ -554,9 +470,9 @@ def main():
         sys.exit(1)
 
     # Pre-flight: show total count and ask for confirmation
-    print(f"\nChecking TheirStack for available leads (last {args.days} days)...")
+    print(f"\nChecking TheirStack for available leads in UAE + Saudi Arabia (last {args.days} days)...")
     total_available = count_check(api_key, args.days)
-    pages_needed = math.ceil(total_available / API_PAGE_SIZE)
+    pages_needed = math.ceil(total_available / API_PAGE_SIZE) if total_available else 0
     print(f"  Found {total_available:,} total leads across {pages_needed} page(s) of {API_PAGE_SIZE}.")
     if args.limit:
         print(f"  You set --limit {args.limit}, so at most {args.limit} will be written.")
@@ -580,7 +496,7 @@ def main():
     print(f"  Found {len(existing_ids)} existing jobs")
 
     # Scrape TheirStack — page by page, classify + write each batch immediately
-    start_msg = f"\nScraping TheirStack (14 countries, 10-500 employees, posted in last {args.days} days, {API_PAGE_SIZE} per page)"
+    start_msg = f"\nScraping TheirStack (UAE + Saudi Arabia, 10-500 employees, posted in last {args.days} days)"
     if args.start_page > 0:
         start_msg += f", resuming from page {args.start_page}"
     if args.limit:
@@ -674,7 +590,7 @@ def main():
 
     # Summary
     print(f"\n{'='*50}")
-    print(f"Phase 1 Complete")
+    print(f"Phase 1 Complete (Gulf)")
     print(f"  Jobs written: {total_new}")
     print(f"  Duplicates skipped: {skipped_dup}")
     print(f"  Staffing firms filtered: {skipped_staffing}")

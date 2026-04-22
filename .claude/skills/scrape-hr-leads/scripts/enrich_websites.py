@@ -17,8 +17,10 @@ Run: python3 -W ignore enrich_websites.py
 import os
 import re
 import json
-import time
+import argparse
 import requests
+from urllib.parse import urlparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
@@ -26,12 +28,7 @@ from googleapiclient.discovery import build
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TOKEN_PATH = os.path.join(SCRIPT_DIR, "..", "..", "..", "token.json")
 
-SHEET_ID = "1jopIsvbAmhxoQmmKXAQTBp1zeujzwOfNAPBsNaCpWqA"  # HR Leads - Apify Final
-TAB = "Leads"
 BATCH = 10
-
-COL_COMPANY_NAME = 10   # K (0-indexed)
-COL_COMPANY_WEBSITE = 11  # L
 
 HEADERS = {
     "User-Agent": (
@@ -50,6 +47,7 @@ LEGAL_SUFFIX_RE = re.compile(
 )
 
 TLDS = [".com", ".org", ".net", ".io", ".us", ".co"]
+WORKERS = 10  # parallel HTTP workers
 
 
 def get_google_service():
@@ -175,29 +173,37 @@ def col_letter(idx):
     return result
 
 
-def flush_updates(service, updates):
-    if not updates:
-        return
-    data = []
-    for u in updates:
-        cell = f"'{TAB}'!{col_letter(COL_COMPANY_WEBSITE)}{u['sheet_row']}"
-        data.append({"range": cell, "values": [[u["website"]]]})
-    service.spreadsheets().values().batchUpdate(
-        spreadsheetId=SHEET_ID,
-        body={"valueInputOption": "RAW", "data": data},
-    ).execute()
-    print(f"\n  → Wrote {len(updates)} websites to sheet")
-
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
+def get_sheet_id_from_url(url):
+    parsed = urlparse(url)
+    if "docs.google.com" in parsed.netloc:
+        parts = parsed.path.split("/")
+        if "d" in parts:
+            return parts[parts.index("d") + 1]
+    return url
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Enrich missing company websites in a Google Sheet")
+    parser.add_argument("--sheet_url", default="1jopIsvbAmhxoQmmKXAQTBp1zeujzwOfNAPBsNaCpWqA", help="Google Sheet URL or ID")
+    parser.add_argument("--tab", default="Leads", help="Tab name")
+    parser.add_argument("--col_company_name", type=int, default=10, help="0-indexed column for company name")
+    parser.add_argument("--col_company_url", type=int, default=11, help="0-indexed column for company URL/website")
+    args = parser.parse_args()
+
+    SHEET_ID = get_sheet_id_from_url(args.sheet_url)
+    TAB = args.tab
+    COL_COMPANY_NAME = args.col_company_name
+    COL_COMPANY_WEBSITE = args.col_company_url
+
     print("=== Enrich Missing Company Websites ===\n")
     service = get_google_service()
 
     print("[1/3] Reading sheet...")
     result = service.spreadsheets().values().get(
-        spreadsheetId=SHEET_ID, range=f"'{TAB}'!A:AA"
+        spreadsheetId=SHEET_ID, range=f"'{TAB}'!A:AZ"
     ).execute()
     data = result.get("values", [])[1:]
     print(f"  {len(data)} total rows")
@@ -217,30 +223,50 @@ def main():
     print(f"  {len(targets)} companies need enrichment")
     print(f"  {skipped} rows skipped (no company name)\n")
 
-    print("[2/3] Searching for websites...")
+    if not targets:
+        print("Nothing to enrich.")
+        return
+
+    print(f"[2/3] Searching for websites ({WORKERS} parallel workers)...")
     updates = []
     found = not_found = 0
+    completed = 0
 
-    for i, target in enumerate(targets):
-        company = target["company"]
-        website = find_website(company)
-        status = "✓" if website else "✗"
-        print(f"  [{i+1}/{len(targets)}] {status}  {company[:50]:50s} → {website or '(not found)'}")
+    def flush(svc, upds):
+        if not upds:
+            return
+        data = []
+        for u in upds:
+            cell = f"'{TAB}'!{col_letter(COL_COMPANY_WEBSITE)}{u['sheet_row']}"
+            data.append({"range": cell, "values": [[u["website"]]]})
+        svc.spreadsheets().values().batchUpdate(
+            spreadsheetId=SHEET_ID,
+            body={"valueInputOption": "RAW", "data": data},
+        ).execute()
+        print(f"\n  → Wrote {len(upds)} websites to sheet")
 
-        if website:
-            found += 1
-            updates.append({"sheet_row": target["sheet_row"], "website": website})
-        else:
-            not_found += 1
+    def search_one(target):
+        return target, find_website(target["company"])
 
-        if len(updates) >= BATCH:
-            flush_updates(service, updates)
-            updates = []
+    with ThreadPoolExecutor(max_workers=WORKERS) as executor:
+        futures = {executor.submit(search_one, t): t for t in targets}
+        for future in as_completed(futures):
+            target, website = future.result()
+            completed += 1
+            status = "✓" if website else "✗"
+            print(f"  [{completed}/{len(targets)}] {status}  {target['company'][:50]:50s} → {website or '(not found)'}")
 
-        time.sleep(0.5)  # polite delay between HTTP checks
+            if website:
+                found += 1
+                updates.append({"sheet_row": target["sheet_row"], "website": website})
+            else:
+                not_found += 1
 
-    if updates:
-        flush_updates(service, updates)
+            if len(updates) >= BATCH:
+                flush(service, updates)
+                updates = []
+
+    flush(service, updates)
 
     print(f"\n[3/3] Summary")
     print(f"  Found:     {found} / {len(targets)}")

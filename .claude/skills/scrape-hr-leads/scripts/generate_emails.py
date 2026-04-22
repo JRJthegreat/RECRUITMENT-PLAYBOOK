@@ -29,22 +29,9 @@ MAX_RETRIES = 3
 
 SYSTEM_PROMPT = "You are an amazing email copywriter for B2B outreach."
 
-EMAIL_PROMPT = """You are writing outbound emails for a recruitment company in the HR recruitment space, specializing in placing HR Talents in the US.
-
-Your role is to write a compelling email body to get in touch with a decision maker at a company actively hiring for HR talent.
-
-You will be provided with: company name, job title they're hiring for, job description, job location, company description, and company industry.
-
-Fill in the variables in this template and personalize it:
-
-Noticed {{COMPANY}} posted a {{ROLE}} role. Is this hire urgent?
-
-Asking because I'm connected with an HR recruitment firm that's placed multiple {{ROLE_PLURAL}} in {{INDUSTRY}} companies.
-
-They have a few pre-vetted {{LOCATION}} based {{ROLE_PLURAL}} with {{SPECIALTY_1}} and {{SPECIALTY_2}} experience, open to interviewing this week.
-
+SHARED_RULES = """
 RULES:
-1. Tone: casual bar conversation, very spartan. No fancy language.
+1. Tone: casual bar conversation, very spartan. No fancy language. When listing alternatives use slashes not "or" — "ADP/Paylocity" not "ADP or Paylocity", "FMLA/ADA" not "FMLA or ADA".
 2. REWRITE the role title the way a recruiter would actually say it out loud in a casual conversation. Not just shortened — rewritten so it sounds natural and human. The test: if you'd never say it that way to a friend, rewrite it.
    - "Global HR Business Partner - GTM" → "Global HRBP"
    - "Director of Academic Affairs HR Operations & Compensation" → "HR Ops Director"
@@ -65,8 +52,9 @@ RULES:
    - "Corporate Recruiter" → "Corporate Recruiters"
 4. Do not hallucinate locations. If remote or unclear, omit location entirely (remove "{{LOCATION}} based" from the sentence).
 5. No exclamation points. No em dashes. Use commas instead.
-6. Abbreviate locations casually: "San Fran" not "San Francisco", "Philly" not "Philadelphia", "DC" not "Washington D.C."
-7. CLEAN the company name. Strip legal suffixes, geographic tags, and generic words to get the casual version — how you'd say it in conversation. Examples:
+6. SHORTEN city names whenever possible — use the name people actually say in conversation:
+   "San Francisco" → "San Fran", "Philadelphia" → "Philly", "Washington D.C." → "DC", "Los Angeles" → "LA", "San Antonio" → "San Antonio", "New York" → "NYC", "Las Vegas" → "Vegas", "Minneapolis" → "Minneapolis", "Charlotte, NC" → "Charlotte", "Indianapolis" → "Indy". Drop state suffixes (", NC", ", TX", etc.).
+7. CLEAN and SHORTEN the company name to the casual version — how you'd actually say it in conversation. Strip legal suffixes, geographic tags, generic descriptors, and anything that makes it sound like a legal filing instead of a name. Examples:
    - "Servexo USA" → "Servexo"
    - "Marrakech Inc" → "Marrakech"
    - "Alpine Solutions Group" → "Alpine"
@@ -74,13 +62,15 @@ RULES:
    - "SSI Services" → "SSI"
    - "Century 21 Real Estate" → "Century 21"
    - "Keolis Commuter Services" → "Keolis"
-   Remove: Inc, LLC, Corp, Ltd, Co., USA, Group, Services, Solutions, Realty, Real Estate, Holdings, International, Technologies, "The" prefix. Keep the core brand name that the person would recognize.
+   - "Walnut Cove Health and Rehabilitation" → "Walnut Cove"
+   - "Weld county School district RE-8" → "Weld RE-8"
+   - "City of Wilmington, NC" → "City of Wilmington"
+   - "North America Security & Select Services" → "North America Security"
+   - "Alternative Nursing ServicesServices, Inc." → "Alternative Nursing"
+   - "Oglebay Resort & Conference Center" → "Oglebay"
+   Remove: Inc, LLC, Corp, Ltd, Co., USA, Group, Services, Solutions, Realty, Real Estate, Holdings, International, Technologies, "The" prefix, state/country suffixes, industry descriptors (Health and Rehabilitation, Conference Center, etc.), district codes. Keep only the core brand name a person would recognize.
 8. Keep proper capitalization for names and titles.
-9. SPECIALTY_1 and SPECIALTY_2: These are the MOST IMPORTANT part of the email. Read the job description carefully and find the 2 things that make this hire HARD TO FILL. What specific, niche requirement would make the hiring manager think "we've been struggling to find someone with exactly this"?
-   - Look for: specific compliance requirements (multi-state, union, government), niche systems (Workday, SAP SuccessFactors, ADP), industry-specific experience, scale challenges (supporting 500+ employees, multi-site), certifications, or uncommon combinations.
-   - BAD examples (too generic, will get ignored): "HR operations", "team management", "compliance", "payroll processing"
-   - GOOD examples (specific pain points): "multi-state compliance across 15+ jurisdictions", "Workday HCM implementation", "union contract negotiations", "scaling HR ops from 50 to 500", "government contracting payroll with prevailing wage", "M&A due diligence and workforce integration"
-   - If the job description is vague, infer from the company context what would be hard to find.
+9. SPECIALTY_1 and SPECIALTY_2: Pick 2 things from the JD that require specialized certification, specific software, or industry-specific regulation. If none exist, pick the most niche technical skill mentioned. Never pick something generic that any HR professional would have.
 10. ALWAYS keep the 3-paragraph structure with line breaks between them. Never collapse into one block.
 11. ALWAYS use the full ROLE_PLURAL consistently — never drop it or shorten further in the last sentence.
 12. Limit output to 65 words max.
@@ -92,8 +82,61 @@ Role: {job_title}
 Location: {job_location}
 Industry: {company_industry}
 Company Description: {company_description}
-Job Description (first 1000 chars): {job_description}
+Job Description: {job_description}
+{opus_specialties}"""
+
+PREAMBLE = """You are writing outbound emails for a recruitment company in the HR recruitment space, specializing in placing HR Talents in the US.
+
+Your role is to write a compelling email body to get in touch with a decision maker at a company actively hiring for HR talent.
+
+You will be provided with: company name, job title they're hiring for, job description, job location, company description, and company industry.
+
+Fill in the variables in this template and personalize it:
+
 """
+
+EMAIL_PROMPT_A = PREAMBLE + """Noticed {{COMPANY}} posted a {{ROLE}} role on Indeed. Is this hire a priority in the next 15-30 days?
+
+Asking because I'm partnered with TalentCount, a recruitment firm that focuses exclusively on HR and has filled similar HR roles for industry leaders like Mercedes-Benz.
+
+They're already connected to a few pre-vetted {{LOCATION}}-based candidates with {{SPECIALTY_1}} and {{SPECIALTY_2}} experience ready to go.
+""" + SHARED_RULES
+
+RULES_B = """
+RULES:
+1. ONLY fill in {{COMPANY}} and {{ROLE}}. Do NOT add any extra sentences, CTAs, questions, or sign-offs. Output the template EXACTLY as written with only those two variables replaced.
+2. REWRITE the role title the way a recruiter would actually say it out loud in a casual conversation. Not just shortened — rewritten so it sounds natural and human. The test: if you'd never say it that way to a friend, rewrite it.
+   - "Global HR Business Partner - GTM" → "Global HRBP"
+   - "Director of Academic Affairs HR Operations & Compensation" → "HR Ops Director"
+   - "Director, Human Resources Business Partner (HRBP)" → "HR Director"
+   - "HR Payroll Coordinator (Remote GovCon / Union)" → "Payroll Coordinator"
+   - "194 - Manager Human Resources" → "HR Manager"
+   - "Director Talent Acquisition" → "TA Director" (NOT "Director TA")
+   Key rule: the job function goes LAST, the level/seniority goes FIRST. "HR Director" not "Director HR". Strip parentheticals, numbering prefixes, pipe-separated lists, and redundant words.
+3. CLEAN and SHORTEN the company name to the casual version — how you'd actually say it in conversation. Strip legal suffixes, geographic tags, generic descriptors, and anything that sounds like a legal filing.
+   - "Walnut Cove Health and Rehabilitation" → "Walnut Cove"
+   - "Weld county School district RE-8" → "Weld RE-8"
+   - "City of Wilmington, NC" → "City of Wilmington"
+   - "Alternative Nursing ServicesServices, Inc." → "Alternative Nursing"
+   Remove: Inc, LLC, Corp, Ltd, Co., USA, Group, Services, Solutions, Realty, Real Estate, Holdings, International, Technologies, "The" prefix, state/country suffixes, industry descriptors. Keep only the core brand name.
+4. No exclamation points. No em dashes. Use commas instead.
+5. Keep proper capitalization for names and titles.
+6. Respond in JSON only: {{"body": "the email body here", "role": "the cleaned singular role title you used"}}. Use \\n\\n for paragraph breaks in the JSON string.
+
+INPUT:
+Company: {company_name}
+Role: {job_title}
+"""
+
+EMAIL_PROMPT_B = PREAMBLE + """Saw {{COMPANY}}'s opening for the {{ROLE}} role on Indeed.
+
+I might be off base, but I'd guess most of this is being handled through internal recruiting and inbound applicants, which can make the hiring timeline harder to predict.
+
+I'm partnered with TalentCount. They specialize exclusively in HR and have filled similar {{ROLE}} searches for industry leaders like Mercedes-Benz. Their average time-to-fill is 3-4 weeks because they're connected with pre-vetted passive candidates who aren't on job boards.
+""" + RULES_B
+
+# Keep EMAIL_PROMPT as alias for backward-compat
+EMAIL_PROMPT = EMAIL_PROMPT_A
 
 
 def col_letter(idx):
@@ -148,21 +191,80 @@ def split_name(full_name):
     return parts[0], " ".join(parts[1:])
 
 
-def generate_email(client, lead, retry=0):
-    """Generate email copy for a single lead using Claude."""
-    prompt = EMAIL_PROMPT.format(
+SENIOR_ROLE_KEYWORDS = [
+    "director", "vp ", "v.p.", "vice president", "head of", "chief",
+    "chro", "cpo", "svp", "evp", "coo", "partner", "president",
+]
+
+def is_senior_role(job_title):
+    t = (job_title or "").lower()
+    return any(kw in t for kw in SENIOR_ROLE_KEYWORDS)
+
+
+SPECIALTY_PROMPT = """Read this job description and return the 2 most specific, niche requirements that make this role genuinely hard to fill. Pick things that require specialized certification, specific software, or industry-specific regulation. Never pick something generic that any HR professional would have.
+
+Company: {company_name}
+Role: {job_title}
+Industry: {company_industry}
+Job Description: {job_description}
+
+Respond in JSON only: {{"specialty_1": "...", "specialty_2": "..."}}"""
+
+
+def extract_specialties(client, lead):
+    """Use Opus to extract niche specialties from the JD."""
+    prompt = SPECIALTY_PROMPT.format(
         company_name=lead["company_name"],
         job_title=lead["job_title"],
-        job_location=lead["job_location"],
         company_industry=lead["company_industry"],
-        company_description=lead["company_description"][:300],
-        job_description=lead["job_description"][:1000],
+        job_description=lead["job_description"],
+    )
+    try:
+        message = client.messages.create(
+            model="claude-opus-4-6",
+            max_tokens=100,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = message.content[0].text.strip()
+        if text.startswith("```"):
+            lines = text.split("\n")
+            text = "\n".join(lines[1:-1])
+        data = json.loads(text)
+        return data.get("specialty_1", ""), data.get("specialty_2", "")
+    except Exception:
+        return "", ""
+
+
+def generate_email(client, lead, retry=0):
+    """Generate email copy for a single lead using Claude.
+    Senior job titles → Template B (Sonnet only). All others → Template A (Opus for specialties + Sonnet for email)."""
+    variant = lead.get("variant") or ("B" if is_senior_role(lead.get("job_title", "")) else "A")
+    template = EMAIL_PROMPT_B if variant == "B" else EMAIL_PROMPT_A
+    fmt_args = dict(
+        company_name=lead["company_name"],
+        job_title=lead["job_title"],
+    )
+    if variant == "A":
+        # Use Opus to extract specialties first
+        s1, s2 = extract_specialties(client, lead)
+        # Pass specialties as context so Sonnet uses them directly
+        fmt_args.update(
+            job_location=lead["job_location"],
+            company_industry=lead["company_industry"],
+            company_description=lead["company_description"][:300],
+            job_description=lead["job_description"],
+        )
+        if s1 and s2:
+            fmt_args["opus_specialties"] = f"\nUse these exact specialties (already extracted): SPECIALTY_1={s1}, SPECIALTY_2={s2}\n"
+        else:
+            fmt_args["opus_specialties"] = ""
+    prompt = template.format(**fmt_args
     )
 
     try:
         message = client.messages.create(
-            model="claude-opus-4-20250514",
-            max_tokens=300,
+            model="claude-sonnet-4-6",
+            max_tokens=400,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -180,7 +282,7 @@ def generate_email(client, lead, retry=0):
         # Clean em dashes → commas
         body = body.replace("—", ",").replace("–", ",")
 
-        return {"body": body, "role": role}
+        return {"body": body, "role": role, "variant": variant}
 
     except anthropic.RateLimitError:
         if retry < MAX_RETRIES:
@@ -204,45 +306,7 @@ def main():
     parser.add_argument("--preview", type=int, default=0, help="Preview N emails without writing to sheet")
     args = parser.parse_args()
 
-    # Extract just the template body (the 3-line copy block between "Fill in the variables..." and "RULES:")
-    template_start = EMAIL_PROMPT.find("Fill in the variables in this template and personalize it:\n\n") + len("Fill in the variables in this template and personalize it:\n\n")
-    template_end = EMAIL_PROMPT.find("\n\nRULES:")
-    current_template = EMAIL_PROMPT[template_start:template_end].strip()
-
-    print(f"\n{'='*60}")
-    print("CURRENT EMAIL TEMPLATE:")
-    print(f"{'='*60}")
-    print(current_template)
-    print(f"{'='*60}")
-
-    try:
-        confirm = input("\nKeep this template? [Y/n]: ").strip().lower()
-    except (EOFError, KeyboardInterrupt):
-        confirm = "y"
-
-    if confirm in ("n", "no"):
-        print("\nPaste your new template below.")
-        print("When done, enter a line with just 'END' and press Enter:")
-        print()
-        lines = []
-        while True:
-            try:
-                line = input()
-            except EOFError:
-                break
-            if line.strip() == "END":
-                break
-            lines.append(line)
-        new_template = "\n".join(lines).strip()
-        if not new_template:
-            print("Error: empty template. Aborting.")
-            sys.exit(1)
-        # Swap the template into EMAIL_PROMPT
-        global EMAIL_PROMPT
-        EMAIL_PROMPT = EMAIL_PROMPT[:template_start] + new_template + EMAIL_PROMPT[template_end:]
-        print(f"\nTemplate updated. New template:\n{new_template}\n")
-    else:
-        print("  Using existing template.\n")
+    print("Templates: A (urgent/placed) and B (priority/exclusive) — 50/50 random split per lead.\n")
 
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
@@ -259,9 +323,17 @@ def main():
     sheet_id = get_sheet_id_from_url(args.sheet_url)
     service = get_google_service(token_path)
 
+    # Detect tab — try "Data" first (standard pipeline), fall back to "Leads" (Apify import)
+    tab_name = "Data"
+    meta = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+    tab_titles = [s["properties"]["title"] for s in meta.get("sheets", [])]
+    if "Data" not in tab_titles and "Leads" in tab_titles:
+        tab_name = "Leads"
+    print(f"  Using tab: '{tab_name}'")
+
     # Read all data
     result = service.spreadsheets().values().get(
-        spreadsheetId=sheet_id, range="Data"
+        spreadsheetId=sheet_id, range=tab_name
     ).execute()
     all_rows = result.get("values", [])
     if len(all_rows) < 2:
@@ -270,12 +342,29 @@ def main():
 
     headers = all_rows[0]
 
-    # Find column indices dynamically
-    def col_idx(name):
-        try:
-            return headers.index(name)
-        except ValueError:
-            return None
+    # Column aliases — maps canonical name → list of alternates to try
+    COLUMN_ALIASES = {
+        "person_name":        ["person_name", "DM Name"],
+        "email":              ["email", "Email"],
+        "company name":       ["company name", "Company Name"],
+        "job_title":          ["job_title", "Job Title"],
+        "job_location":       ["job_location", "City"],
+        "job_description":    ["job_description", "Job Description"],
+        "company_industry":   ["company_industry", "Occupations"],
+        "company_description":["company_description", "Company Description"],
+        "Body":               ["Body", "Email Body"],
+        "First name":         ["First name", "First Name"],
+        "Last name":          ["Last name", "Last Name"],
+        "template_variant":   ["template_variant"],
+    }
+
+    def col_idx(canonical):
+        for alias in COLUMN_ALIASES.get(canonical, [canonical]):
+            try:
+                return headers.index(alias)
+            except ValueError:
+                continue
+        return None
 
     idx_person = col_idx("person_name")
     idx_email = col_idx("email")
@@ -288,19 +377,45 @@ def main():
     idx_body = col_idx("Body")
     idx_firstname = col_idx("First name")
     idx_lastname = col_idx("Last name")
+    idx_variant = col_idx("template_variant")
 
-    # Find or create cleaned_role column
-    idx_cleaned_role = col_idx("cleaned_role")
-    if idx_cleaned_role is None:
-        # Add it as the next column after the last header
-        idx_cleaned_role = len(headers)
+    # Get the sheet's grid properties so we know how many columns exist
+    sheet_props = next(
+        s["properties"] for s in meta.get("sheets", [])
+        if s["properties"]["title"] == tab_name
+    )
+    sheet_gid = sheet_props["sheetId"]
+    current_col_count = sheet_props["gridProperties"]["columnCount"]
+
+    def ensure_column(canonical, label):
+        nonlocal current_col_count
+        idx = col_idx(canonical)
+        if idx is not None:
+            return idx
+        # Need to append a column if the sheet is at max
+        new_idx = len(headers)
+        if new_idx >= current_col_count:
+            service.spreadsheets().batchUpdate(
+                spreadsheetId=sheet_id,
+                body={"requests": [{"appendDimension": {
+                    "sheetId": sheet_gid,
+                    "dimension": "COLUMNS",
+                    "length": 1,
+                }}]},
+            ).execute()
+            current_col_count += 1
         service.spreadsheets().values().update(
             spreadsheetId=sheet_id,
-            range=f"'Data'!{col_letter(idx_cleaned_role)}1",
+            range=f"'{tab_name}'!{col_letter(new_idx)}1",
             valueInputOption="RAW",
-            body={"values": [["cleaned_role"]]},
+            body={"values": [[label]]},
         ).execute()
-        print(f"  Added 'cleaned_role' column at position {col_letter(idx_cleaned_role)}")
+        headers.append(label)
+        print(f"  Added '{label}' column at {col_letter(new_idx)}")
+        return new_idx
+
+    idx_cleaned_role = ensure_column("cleaned_role", "cleaned_role")
+    idx_variant = ensure_column("template_variant", "template_variant")
 
     missing = []
     for name, idx in [("person_name", idx_person), ("email", idx_email),
@@ -390,6 +505,7 @@ def main():
                 if result:
                     body = result["body"] if isinstance(result, dict) else result
                     role = result.get("role", "") if isinstance(result, dict) else ""
+                    variant = result.get("variant", "") if isinstance(result, dict) else ""
                     full_body = f"Hey {lead['first_name']},\n\n{body}"
                     r = {
                         "row_num": lead["row_num"],
@@ -398,6 +514,7 @@ def main():
                         "last_name": lead["last_name"],
                         "body": full_body,
                         "role": role,
+                        "variant": variant,
                         "company_name": lead["company_name"],
                     }
                     batch_results.append(r)
@@ -411,11 +528,13 @@ def main():
         if batch_results and args.preview == 0:
             updates = []
             for r in batch_results:
-                updates.append({"range": f"'Data'!{firstname_col}{r['row_num']}", "values": [[r["first_name"]]]})
-                updates.append({"range": f"'Data'!{lastname_col}{r['row_num']}", "values": [[r["last_name"]]]})
-                updates.append({"range": f"'Data'!{body_col}{r['row_num']}", "values": [[r["body"]]]})
+                updates.append({"range": f"'{tab_name}'!{firstname_col}{r['row_num']}", "values": [[r["first_name"]]]})
+                updates.append({"range": f"'{tab_name}'!{lastname_col}{r['row_num']}", "values": [[r["last_name"]]]})
+                updates.append({"range": f"'{tab_name}'!{body_col}{r['row_num']}", "values": [[r["body"]]]})
                 if r.get("role"):
-                    updates.append({"range": f"'Data'!{role_col}{r['row_num']}", "values": [[r["role"]]]})
+                    updates.append({"range": f"'{tab_name}'!{role_col}{r['row_num']}", "values": [[r["role"]]]})
+                if r.get("variant"):
+                    updates.append({"range": f"'{tab_name}'!{col_letter(idx_variant)}{r['row_num']}", "values": [[r["variant"]]]})
 
             service.spreadsheets().values().batchUpdate(
                 spreadsheetId=sheet_id,

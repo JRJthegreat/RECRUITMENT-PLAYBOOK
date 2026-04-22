@@ -102,8 +102,14 @@ def parse_employee_count(count_str):
         return None
 
 
-def get_dm_category(job_title, employee_count_str, tab_name):
-    """Map job title + company size + tab to AMF decision_maker_category."""
+def get_dm_category(job_title, employee_count_str, tab_name, broad=False):
+    """Map job title + company size + tab to AMF decision_maker_category.
+
+    broad=True: return all categories for fallback retry on not-found rows.
+    """
+    if broad:
+        return ["ceo", "engineering", "hr"]
+
     title_lower = (job_title or "").lower().strip()
 
     # Contract tab → always engineering (CTO/VP Eng)
@@ -216,6 +222,7 @@ def main():
     parser.add_argument("--limit", type=int, default=0, help="Max leads to process (0 = all)")
     parser.add_argument("--dm_only", action="store_true", help="Only process rows needing DM lookup (no person_name)")
     parser.add_argument("--email_only", action="store_true", help="Only process rows that already have person_name")
+    parser.add_argument("--broad", action="store_true", help="Try all DM categories (ceo, engineering, hr) — use for retry on not-found rows")
     args = parser.parse_args()
 
     api_key = os.getenv("ANYMAILFINDER_API_KEY")
@@ -415,7 +422,8 @@ def main():
 
         def enrich_dm(row_data):
             categories = get_dm_category(
-                row_data["job_title"], row_data["employee_count"], row_data["tab"]
+                row_data["job_title"], row_data["employee_count"], row_data["tab"],
+                broad=args.broad
             )
             result = find_dm_email(
                 api_key, row_data["company_domain"],

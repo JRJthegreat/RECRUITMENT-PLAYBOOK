@@ -52,7 +52,7 @@ COL_ADDED_INSTANTLY = 26  # AA
 
 SHARED_RULES = """
 RULES:
-1. Tone: casual bar conversation, very spartan. No fancy language. When listing alternatives use slashes not "or" — "ADP/Paylocity" not "ADP or Paylocity", "FMLA/ADA" not "FMLA or ADA".
+1. Tone: casual bar conversation, very spartan. No fancy language. NEVER use slashes to stack alternatives — slashes make the email read AI-written. Pick the single best item; do not write "ADP/Paylocity", "FMLA/CFRA", "audit prep/EEO reporting", "warehouse and retail", or any combo of "X/Y". One thing per slot. Acronyms are fine on their own (e.g. "OFCCP audits"), but never chain them with slashes.
 2. REWRITE the role title the way a recruiter would actually say it out loud in a casual conversation. Not just shortened — rewritten so it sounds natural and human. The test: if you'd never say it that way to a friend, rewrite it.
    - "Global HR Business Partner - GTM" → "Global HRBP"
    - "Director of Academic Affairs HR Operations & Compensation" → "HR Ops Director"
@@ -65,17 +65,12 @@ RULES:
    - "Immigration & Mobility Specialist" → "Immigration Specialist"
    - "Senior Manager, People Operations" → "People Ops Manager"
    Key rule: the job function goes LAST, the level/seniority goes FIRST. "HR Director" not "Director HR". "TA Manager" not "Manager TA". Strip parentheticals, numbering prefixes, pipe-separated lists, and redundant words.
-3. ROLE_PLURAL: pluralize the rewritten role title naturally. The plural must also sound like something a human would say.
-   - "HR Manager" → "HR Managers"
-   - "TA Director" → "TA Directors"
-   - "HRBP" → "HRBPs"
-   - "Payroll Coordinator" → "Payroll Coordinators"
-   - "Corporate Recruiter" → "Corporate Recruiters"
-4. Do not hallucinate locations. If remote or unclear, omit location entirely (remove "{{LOCATION}} based" from the sentence).
+3. YEARS: Extract minimum years of experience from the JD. Floor is "3+ years" — NEVER write less than that even if the JD says "1+ year", "2+ years", or doesn't state any requirement. If the JD says "5-7 years" or "7-10 years", write the lower bound with a plus ("5+ years", "7+ years"). If the JD says "X+ years" where X >= 3, use that exactly.
+4. Do not hallucinate locations. If remote or unclear, omit location entirely (remove "{{LOCATION}} based " from the sentence).
 5. No exclamation points. No em dashes. Use commas instead.
 6. SHORTEN city names whenever possible — use the name people actually say in conversation:
    "San Francisco" → "San Fran", "Philadelphia" → "Philly", "Washington D.C." → "DC", "Los Angeles" → "LA", "San Antonio" → "San Antonio", "New York" → "NYC", "Las Vegas" → "Vegas", "Minneapolis" → "Minneapolis", "Charlotte, NC" → "Charlotte", "Indianapolis" → "Indy". Drop state suffixes (", NC", ", TX", etc.).
-7. CLEAN and SHORTEN the company name to the casual version — how you'd actually say it in conversation. Strip legal suffixes, geographic tags, generic descriptors, and anything that makes it sound like a legal filing instead of a name. Examples:
+7. CLEAN and SHORTEN the company name AGGRESSIVELY to the casual version — how you'd actually say it in conversation. Default to ONE WORD if possible. Strip legal suffixes, geographic tags, industry descriptors, product descriptors, and anything that makes it sound like a legal filing instead of a name. Examples:
    - "Servexo USA" → "Servexo"
    - "Marrakech Inc" → "Marrakech"
    - "Alpine Solutions Group" → "Alpine"
@@ -89,13 +84,20 @@ RULES:
    - "North America Security & Select Services" → "North America Security"
    - "Alternative Nursing ServicesServices, Inc." → "Alternative Nursing"
    - "Oglebay Resort & Conference Center" → "Oglebay"
-   Remove: Inc, LLC, Corp, Ltd, Co., USA, Group, Services, Solutions, Realty, Real Estate, Holdings, International, Technologies, "The" prefix, state/country suffixes, industry descriptors (Health and Rehabilitation, Conference Center, etc.), district codes. Keep only the core brand name a person would recognize.
-8. Keep proper capitalization for names and titles.
-9. SPECIALTY_1 and SPECIALTY_2: Pick 2 things from the JD that require specialized certification, specific software, or industry-specific regulation. If none exist, pick the most niche technical skill mentioned. Never pick something generic that any HR professional would have.
-10. ALWAYS keep the 3-paragraph structure with line breaks between them. Never collapse into one block.
-11. ALWAYS use the full ROLE_PLURAL consistently — never drop it or shorten further in the last sentence.
-12. Limit output to 65 words max.
-13. Respond in JSON only: {{"body": "the email body here", "role": "the cleaned singular role title you used"}}. Use \\n\\n for paragraph breaks in the JSON string.
+   - "Gehl Food & Beverage" → "Gehl"
+   - "Aluminum Precision Products" → "Aluminum Precision"
+   - "Ampac Holdings, LLC" → "Ampac"
+   - "Wing Inflatables" → "Wing"
+   - "QuinStar Technology" → "QuinStar"
+   - "Muir Wood Teen Treatment" → "Muir Wood"
+   - "ProAmpac" → "ProAmpac"
+   Remove: Inc, LLC, Corp, Ltd, Co., USA, Group, Services, Solutions, Realty, Real Estate, Holdings, International, Technologies, Technology, Products, Industries, Systems, Enterprises, Manufacturing, "& Beverage", "& Foods", "Foods", "Food & Beverage", "Treatment", "Center", "& Co", "The" prefix, state/country suffixes, industry descriptors (Health and Rehabilitation, Conference Center, Teen Treatment, etc.), district codes. Keep only the core brand name a person would recognize.
+9. Keep proper capitalization for names and titles.
+10. SPECIALTY_1 and SPECIALTY_2: Pick 2 things from the JD that require specialized certification, specific software, or industry-specific regulation. If none exist, pick the most niche technical skill mentioned. Never pick something generic that any HR professional would have. PHRASE NATURALLY — the template no longer prefixes with "strong on", so the specialties must read as a flowing clause. Use varied lead-ins: "deep in OFCCP audits", "fluent in Spanish", "knows California wage law cold", "hands-on with Dayforce", "ran AAP compliance", "led union grievances". Vary the lead-in across SPECIALTY_1 and SPECIALTY_2 so the sentence doesn't feel templated. The two should join cleanly with "and" — e.g. "deep in OFCCP audits and fluent in Spanish" or "ran AAP compliance and hands-on with Dayforce".
+11. ALWAYS keep the 3-paragraph structure with line breaks between them. Never collapse into one block.
+12. INDUSTRY: short noun phrase fitting "at a {{INDUSTRY}} company" (e.g. "manufacturing", "healthcare", "fintech", "logistics", "retail"). If unclear, omit that clause entirely — write "as a {{ROLE}}, strong on..." instead.
+13. Limit output to 75 words max.
+14. Respond in JSON only: {{"body": "the email body here", "role": "the cleaned singular role title you used"}}. Use \\n\\n for paragraph breaks in the JSON string.
 
 INPUT:
 Company: {company_name}
@@ -142,18 +144,14 @@ Fill in the variables in this template and personalize it:
 
 """
 
-# Default templates — can be overridden via --template_a / --template_b
-DEFAULT_TEMPLATE_A = """Noticed {{COMPANY}} posted a {{ROLE}} role on Indeed. Is this hire a priority in the next 15-30 days?
+# Single template — civil-eng style, urgency-led, single candidate framing
+DEFAULT_TEMPLATE_A = """Noticed {{COMPANY}} is hiring a {{ROLE}}. Is this hire a priority in the next 14 days?
 
-Asking because I'm partnered with TalentCount, a recruitment firm that focuses exclusively on HR and has filled similar HR roles for industry leaders like Mercedes-Benz.
+Asking because I'm working with an HR recruitment firm that has a {{LOCATION}} based candidate who just became available, {{YEARS}} as a {{ROLE}} at a {{INDUSTRY}} company, {{SPECIALTY_1}} and {{SPECIALTY_2}}.
 
-They're already connected to a few pre-vetted {{LOCATION}}-based candidates with {{SPECIALTY_1}} and {{SPECIALTY_2}} experience ready to go."""
+Open to interviewing this week if filling this role is urgent."""
 
-DEFAULT_TEMPLATE_B = """Saw {{COMPANY}}'s opening for the {{ROLE}} role on Indeed.
-
-I might be off base, but I'd guess most of this is being handled through internal recruiting and inbound applicants, which can make the hiring timeline harder to predict.
-
-I'm partnered with TalentCount. They specialize exclusively in HR and have filled similar {{ROLE}} searches for industry leaders like Mercedes-Benz. Their average time-to-fill is 3-4 weeks because they're connected with pre-vetted passive candidates who aren't on job boards."""
+DEFAULT_TEMPLATE_B = DEFAULT_TEMPLATE_A
 
 
 SENIOR_ROLE_KEYWORDS = [
@@ -162,6 +160,19 @@ SENIOR_ROLE_KEYWORDS = [
 ]
 
 SPECIALTY_PROMPT = """Read this job description and return the 2 most specific, niche requirements that make this role genuinely hard to fill. Pick things that require specialized certification, specific software, or industry-specific regulation. Never pick something generic that any HR professional would have.
+
+CRITICAL: Each specialty must be ONE clean phrase. NEVER use slashes to stack alternatives ("audit prep/EEO reporting" → BAD). NEVER chain acronyms ("FMLA/CFRA/PDL" → BAD, pick one). Sound like how a recruiter would describe it casually, not how a job ad reads. Examples of good specialties:
+- "OFCCP audit prep"
+- "California wage and hour law"
+- "Workday HRIS implementation"
+- "bilingual Spanish"
+- "union grievance handling"
+- "multi-state payroll"
+Examples of BAD specialties (do not produce these):
+- "OFCCP audit prep/EEO reporting"
+- "FMLA/CFRA/PDL leave admin"
+- "warehouse and retail OSHA"
+- "ADP/Paylocity/Workday"
 
 Company: {company_name}
 Role: {job_title}
@@ -240,7 +251,7 @@ def extract_specialties(client, lead):
     )
     try:
         message = client.messages.create(
-            model="claude-opus-4-6",
+            model="claude-opus-4-5",
             max_tokens=100,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -256,35 +267,28 @@ def extract_specialties(client, lead):
 
 def generate_email(client, lead, template_a_text, template_b_text, retry=0):
     """Generate email copy for a single lead using Claude.
-    Senior job titles → Template B (Sonnet only). All others → Template A (Opus specialties + Sonnet email)."""
-    variant = "B" if is_senior_role(lead.get("job_title", "")) else "A"
+    Single template — Opus specialties + Sonnet email body for every row."""
+    variant = "A"
 
-    if variant == "B":
-        prompt = PREAMBLE + template_b_text + RULES_B.format(
-            company_name=lead["company_name"],
-            job_title=lead["job_title"],
-        )
-    else:
-        # Use Opus to extract specialties first
-        s1, s2 = extract_specialties(client, lead)
-        opus_specialties = ""
-        if s1 and s2:
-            opus_specialties = f"\nUse these exact specialties (already extracted): SPECIALTY_1={s1}, SPECIALTY_2={s2}\n"
+    s1, s2 = extract_specialties(client, lead)
+    opus_specialties = ""
+    if s1 and s2:
+        opus_specialties = f"\nUse these exact specialties (already extracted): SPECIALTY_1={s1}, SPECIALTY_2={s2}\n"
 
-        location = lead.get("job_location", "")
-        prompt = PREAMBLE + template_a_text + SHARED_RULES.format(
-            company_name=lead["company_name"],
-            job_title=lead["job_title"],
-            job_location=location,
-            company_industry=lead.get("company_industry", ""),
-            company_description=lead.get("company_description", "")[:300],
-            job_description=lead.get("job_description", ""),
-            opus_specialties=opus_specialties,
-        )
+    location = lead.get("job_location", "")
+    prompt = PREAMBLE + template_a_text + SHARED_RULES.format(
+        company_name=lead["company_name"],
+        job_title=lead["job_title"],
+        job_location=location,
+        company_industry=lead.get("company_industry", ""),
+        company_description=lead.get("company_description", "")[:300],
+        job_description=lead.get("job_description", ""),
+        opus_specialties=opus_specialties,
+    )
 
     try:
         message = client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-opus-4-5",
             max_tokens=400,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": prompt}],

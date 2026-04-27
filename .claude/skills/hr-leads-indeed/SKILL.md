@@ -1,33 +1,67 @@
 ---
 name: hr-leads-indeed
-description: HR lead pipeline from Apify Indeed datasets - pull dataset, find decision makers via Google Search, enrich emails via Connector OS, generate personalized outreach with Claude, and push to Instantly. Use when user provides an Apify dataset ID for Indeed HR jobs, or asks to run the indeed lead pipeline.
+description: US HR recruitment lead pipeline. Orchestrates Apify Indeed scrapes (valig/indeed-jobs-scraper) across an HR keyword × US-state grid with a 14-day filter, ingests to Google Sheets (≤500 employees), classifies out recruitment agencies and PEOs, dedupes by company, finds decision makers via Google Search, enriches emails via Connector OS, generates personalized outreach with Claude, and pushes to Instantly. Use when the user asks to run the HR Indeed lead pipeline, or provides a pre-existing Apify dataset ID for ingestion only.
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent
 ---
 
-# HR Leads - Indeed Pipeline
+# HR Leads — Indeed Pipeline
 
 ## What This Skill Does
 
-Processes Indeed job postings from Apify datasets. The user scrapes on Apify manually, then provides a dataset ID. This skill handles: pulling data to Google Sheets, finding DMs via Google Search (cheap), enriching emails via Connector OS, generating outreach, and pushing to Instantly.
+Generates US HR leads from Indeed via Apify. Default flow: the skill runs the Apify `valig/indeed-jobs-scraper` actor across a keyword × US-state grid (last 14 days, ≤500 employees, US), classifies companies to drop recruitment agencies / PEOs / job boards, dedupes by company, finds decision makers via Google Search, enriches emails via Connector OS, generates outreach with Claude, and pushes to an Instantly campaign.
 
-**Key difference from `scrape-hr-leads`:** No TheirStack scraping. Input is an Apify dataset ID. DM lookup uses Google Search instead of AnyMail Finder. Email enrichment uses Connector OS instead of AnyMail Finder.
+Manual override: `pull_dataset.py` still works for ingesting a dataset ID the user scraped by hand on Apify's web UI.
+
+**Target roles** (typical Indeed scrape filter):
+HR Manager, HR Director, HR Generalist, Recruiter, Talent Acquisition, CHRO, Benefits Manager, Benefits Specialist, Payroll Manager.
+
+**Target states**: California (priority), Texas, New York, South Carolina, North Carolina, Nevada, Idaho, Utah, Ohio, Tennessee, Georgia, Missouri.
 
 ---
 
 ## Pipeline Phases
 
 ```bash
-# Phase 1 — Pull Apify dataset into Google Sheet
+# Phase 1 — Scrape Apify Indeed (keyword × US-state grid, 14-day filter, ≤500 employees)
+python3 -W ignore .claude/skills/hr-leads-indeed/scripts/scrape_and_pull.py \
+  --sheet_url "SHEET_URL" [--limit 100] [--days 14] [--workers 8] \
+  [--keywords "A,B,..."] [--states "A,B,..."] [--dry_run] [--yes]
+
+# Phase 1 (manual fallback) — Pull a pre-existing Apify dataset ID
 python3 -W ignore .claude/skills/hr-leads-indeed/scripts/pull_dataset.py \
-  --dataset_id "DATASET_ID" [--sheet_title "Title"] [--limit N]
+  --dataset_id "DATASET_ID" [--sheet_url "URL"] [--sheet_title "Title"] [--limit N]
+
+# Phase 1.75 — Classify companies + delete agencies/PEOs/job boards
+python3 -W ignore .claude/skills/hr-leads-indeed/scripts/classify_companies.py \
+  --sheet_url "SHEET_URL" [--apply] [--limit N]
+
+# Phase 1.8 — Dedupe by company (keep highest seniority; oldest Date Published wins ties)
+python3 -W ignore .claude/skills/hr-leads-indeed/scripts/dedupe_by_company.py \
+  --sheet_url "SHEET_URL" [--apply]
+
+# Phase 1.9 — AI filter: drop rows where Job Title isn't genuinely HR/Talent/Benefits/Payroll
+python3 -W ignore .claude/skills/hr-leads-indeed/scripts/ai_filter_jobs.py \
+  --sheet_url "SHEET_URL" [--apply] [--limit N]
+
+# Phase 1.92 — Find each company's official website domain via Google Search
+python3 -W ignore .claude/skills/hr-leads-indeed/scripts/find_company_domains.py \
+  --sheet_url "SHEET_URL" [--apply] [--limit N]
+
+# Phase 1.95 — Enrich missing Company Size via LinkedIn company-page snippets
+python3 -W ignore .claude/skills/hr-leads-indeed/scripts/find_company_sizes.py \
+  --sheet_url "SHEET_URL" [--apply] [--limit N]
 
 # Phase 2 — Find decision makers via Google Search + LinkedIn
 python3 -W ignore .claude/skills/hr-leads-indeed/scripts/find_dm.py \
   --sheet_url "SHEET_URL" [--limit N] [--dry_run]
 
-# Phase 3 — Enrich emails via Connector OS
+# Phase 3 — Enrich emails via Connector OS (for DMs found in Phase 2)
 python3 -W ignore .claude/skills/hr-leads-indeed/scripts/enrich_emails.py \
   --sheet_url "SHEET_URL" [--limit N] [--dry_run]
+
+# Phase 3.5 — AMF rescue: fill DM Name + Email + Title for rows Phase 2 missed
+python3 -W ignore .claude/skills/hr-leads-indeed/scripts/find_dm_amf.py \
+  --sheet_url "SHEET_URL" [--limit N] [--dry_run] [--retry_not_found]
 
 # Phase 4 — Generate emails (MUST get user approval on template first)
 python3 -W ignore .claude/skills/hr-leads-indeed/scripts/generate_emails.py \
@@ -53,15 +87,20 @@ The user decides which template(s) to use and how to split (A/B, senior/non-seni
 
 ## DM Targeting Rules (Phase 2)
 
-Same as `scrape-hr-leads`:
 - Senior HR role (VP/Director/Head/C-suite) → CEO
 - Unknown company size → CEO
 - <200 employees → CEO/Founder
 - 200-1000 → VP HR / VP People
-- 1000+ → Director TA / Head of Recruiting
+- 1000+ → Director TA / Head of Recruiting (filtered out at Phase 1 by ≤500 cap)
 
 DM names found via Google Search: `"{company}" "{target title}" site:linkedin.com/in/`
 Validated by: company name match + title match. No location filtering.
+
+---
+
+## Why Phase 1.75 (Classify Companies)
+
+Indeed datasets don't distinguish direct employers from recruitment agencies, staffing firms, PEOs (Insperity, TriNet), RPOs, and job boards. Cold-emailing an agency or PEO wastes sends — they resell HR services, they don't hire HR for themselves. Phase 1.75 uses Apify Google Search + Claude Haiku to classify each unique company, deletes agency / job_board rows, and populates `Company Website` (col L) for Phase 3 enrichment. Cost: ~$0.50 per 200 companies.
 
 ---
 
@@ -83,10 +122,29 @@ First Name | Last Name | Email Body | Added to Instantly
 ## Environment
 
 ```
-APIFY_API_TOKEN=...     # Apify dataset fetch + Google Search actor
-SSM_API_KEY=...         # Connector OS email finder
-ANTHROPIC_API_KEY=...   # Claude email generation
-INSTANTLY_API_KEY=...   # Campaign push
+APIFY_API_TOKEN=...        # Apify dataset fetch + Google Search actor + Indeed scraper
+SSM_API_KEY=...            # Connector OS email finder (Phase 3)
+ANYMAILFINDER_API_KEY=...  # AMF /decision-maker rescue (Phase 3.5)
+ANTHROPIC_API_KEY=...      # Claude email generation + Haiku classification
+INSTANTLY_API_KEY=...      # Campaign push
 ```
 
 Google Sheets OAuth: `.claude/token.json`
+
+---
+
+## Resume Safety
+
+All phases skip already-processed rows:
+- Phase 1 (`scrape_and_pull.py`): loads existing Job_Ids from sheet before runs; drops duplicates at ingest
+- Phase 1 (`pull_dataset.py`, manual fallback): appends blind — don't re-pull same dataset twice
+- Phase 1.75: idempotent — re-run safe
+- Phase 1.8: `--apply` deletes dupe rows bottom-up; re-run after apply is a no-op
+- Phase 1.9: `--apply` deletes non-HR rows; re-run after apply classifies remaining rows again (stable — HR titles keep scoring KEEP)
+- Phase 1.92: skips rows where col L already looks like a domain; idempotent
+- Phase 1.95: skips rows where col M already has a parseable employee count; idempotent
+- Phase 2: skips rows where DM Name is populated; uses primary→fallback tier search; runs cap of 2 Apify queries per row
+- Phase 3: skips rows where Email is populated
+- Phase 3.5: skips rows where DM Name is populated OR Email is non-empty/non-`not_found`; requires col L domain to fire; writes 'not_found' to col W on miss so re-runs skip (override with `--retry_not_found`)
+- Phase 4: skips rows where Email Body is populated (`--overwrite` to regenerate)
+- Phase 5: skips rows where "Added to Instantly" is TRUE

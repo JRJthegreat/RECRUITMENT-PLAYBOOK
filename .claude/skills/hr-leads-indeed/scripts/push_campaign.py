@@ -399,8 +399,10 @@ def main():
         body = cell(idx_body)
         added = cell(idx_added)
 
-        # Skip if no email, no body, or already added
-        if not email_addr or not body:
+        # Skip if no email, email is "not_found", no body, or already added
+        if not email_addr or email_addr.lower() == "not_found":
+            continue
+        if not body:
             continue
         if added:
             continue

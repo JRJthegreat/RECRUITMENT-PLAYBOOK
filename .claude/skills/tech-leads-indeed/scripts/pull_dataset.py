@@ -1,9 +1,14 @@
 """
-Phase 1: Pull Apify Indeed (tech) dataset → Google Sheet
+Phase 1b: Pull Apify Indeed (tech) dataset → Google Sheet
 
-Filters applied at ingestion:
-  - Perm only: skip Contract / Contractor / Freelance / Temporary / Internship
+Fallback for when a dataset has already been scraped manually. For fresh
+runs use `scrape_and_pull.py` which orchestrates the keyword × city grid.
+
+Filter applied at ingestion:
   - Company size ≤ 500: skip enterprises (won't engage cold)
+
+No jobtype filter — Perm, Contract, and Freelance rows all flow through
+a single template downstream.
 
 Column layout (29 cols):
   Job Info    A-J: Job_Id, Job Title, Job Type, Occupations, Date Published,
@@ -40,8 +45,6 @@ APIFY_PAGE_SIZE = 1000
 BATCH_SIZE = 10
 TAB_NAME = "Leads"
 MAX_EMPLOYEES = 500
-
-CONTRACT_KEYWORDS = ("contract", "contractor", "freelance", "temporary", "temp", "internship", "intern")
 
 HEADERS = [
     # Job Info (A-J)
@@ -160,12 +163,6 @@ def fmt_salary(val):
         return str(val)
 
 
-def is_contract_job(job_type_str, job_title, occupations_str):
-    """Check if any of jobTypes / title / occupations indicates non-perm."""
-    haystack = " ".join(filter(None, [job_type_str, job_title, occupations_str])).lower()
-    return any(kw in haystack for kw in CONTRACT_KEYWORDS)
-
-
 def parse_size_lower_bound(size_str):
     """Indeed returns ranges like '11 to 50', '201 to 500', '1,001 to 5,000', '10,000+'.
     Returns the lower bound as int, or None if unparseable."""
@@ -282,7 +279,6 @@ def main():
     # Filter and map
     print(f"\n[3/3] Filtering and mapping {len(items)} items...")
     skipped_no_company = 0
-    skipped_contract = 0
     skipped_too_big = 0
     rows = []
 
@@ -291,16 +287,6 @@ def main():
         company_name = (emp.get("name") or "").strip()
         if not company_name:
             skipped_no_company += 1
-            continue
-
-        # Perm-only filter
-        job_types = item.get("jobTypes") or {}
-        job_type_str = ", ".join(v for v in job_types.values() if v) if isinstance(job_types, dict) else str(job_types)
-        occupations = item.get("occupations") or {}
-        occ_str = ", ".join(v for v in occupations.values() if v) if isinstance(occupations, dict) else str(occupations)
-        title = item.get("title", "")
-        if is_contract_job(job_type_str, title, occ_str):
-            skipped_contract += 1
             continue
 
         # Size filter (skip companies > MAX_EMPLOYEES)
@@ -315,7 +301,6 @@ def main():
             break
 
     print(f"  Skipped (no company name): {skipped_no_company}")
-    print(f"  Skipped (Contract/Freelance/Intern): {skipped_contract}")
     print(f"  Skipped (>{MAX_EMPLOYEES} employees): {skipped_too_big}")
     print(f"  Kept: {len(rows)}")
 

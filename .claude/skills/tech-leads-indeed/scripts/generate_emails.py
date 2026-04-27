@@ -1,16 +1,15 @@
 """
-Phase 4: Generate personalized tech outreach emails using Claude Opus 4.5
+Phase 4: Generate personalized tech outreach emails using Claude Opus 4.5.
 
-Reads lead data from the sheet, generates email copy per lead,
-and writes First Name, Last Name, Email Body, template_variant, cleaned_role columns.
+Reads lead data from the sheet, generates email copy per lead, and writes
+First Name, Last Name, Email Body, template_variant, cleaned_role columns.
 Does NOT push to Instantly — that's push_campaign.py's job.
 
-IMPORTANT: TEMPLATE_PERM is a placeholder. Get user-approved copy and slot it in
+IMPORTANT: TEMPLATE is a placeholder. Get user-approved copy and slot it in
 before running without --preview. SKILL.md gates this with explicit approval.
 """
 
 import os
-import sys
 import json
 import argparse
 import time
@@ -33,9 +32,9 @@ MAX_RETRIES = 3
 BATCH_SIZE = 10
 SHEET_WRITE_DELAY = 1.5
 
-SYSTEM_PROMPT = "You are an amazing email copywriter for B2B tech recruitment outreach."
+SYSTEM_PROMPT = "You are an amazing email copywriter for B2B tech recruitment outreach across European markets."
 
-# Column indices (matching pull_dataset.py HEADERS)
+# Column indices (pull_dataset.py HEADERS — canonical tech layout)
 COL_JOB_TITLE = 1         # B
 COL_OCCUPATIONS = 3       # D
 COL_JOB_DESCRIPTION = 9   # J
@@ -55,41 +54,51 @@ COL_CLEANED_ROLE = 28     # AC
 
 
 # ============================================================
-# TEMPLATE_PERM — placeholder. User will provide final copy.
+# TEMPLATE — placeholder. User will provide final copy.
 # Available variables (rendered into the body):
 #   {{COMPANY_NAME}}, {{ROLE_TITLE}}, {{LOCATION}}, {{INDUSTRY}},
 #   {{SPECIALTY_1}}, {{SPECIALTY_2}}, {{YEARS}}
+# Single template covers Perm, Contract, and Freelance tech roles.
 # ============================================================
-TEMPLATE_PERM = """<<TBD: user will provide copy>>
+TEMPLATE = """<<TBD — waiting on user-approved copy>>
 
-Variables available: {{COMPANY_NAME}}, {{ROLE_TITLE}}, {{LOCATION}}, {{INDUSTRY}}, {{SPECIALTY_1}}, {{SPECIALTY_2}}, {{YEARS}}
+Noticed {{COMPANY_NAME}} posted a {{ROLE_TITLE}} role. Is this hire a priority in the next 14 days?
+
+Asking because I'm working with a recruiter who has a {{LOCATION}} based {{ROLE_TITLE}} who just became available. {{YEARS}} as a {{ROLE_TITLE}}, {{INDUSTRY}}, strong on {{SPECIALTY_1}} and {{SPECIALTY_2}}.
+
+Open to interviewing this week if filling this role is urgent.
 """
 
 
 SHARED_RULES = """
 RULES:
-1. Tone: casual bar conversation, very spartan. No fancy language. When listing alternatives use slashes not "or" — "Python/Go" not "Python or Go".
-2. REWRITE the role title the way a tech recruiter would actually say it out loud in a casual conversation. Not just shortened — rewritten so it sounds natural and human.
-   - "Senior Software Engineer - Backend (Python)" → "Senior Backend Engineer"
-   - "Staff Site Reliability Engineer" → "Staff SRE"
-   - "Lead DevOps Engineer (AWS / Kubernetes)" → "Lead DevOps Engineer"
-   - "Principal Machine Learning Scientist" → "Principal ML Scientist"
-   - "Engineering Manager - Platform" → "Platform EM"
-   - "VP of Engineering, Infrastructure" → "VP of Infra Engineering"
-   - "Director, Data Engineering" → "Data Engineering Director"
-   Key rule: the function/specialty leads, the level qualifies it. Strip parentheticals, numbering prefixes, pipe-separated lists.
+1. Tone: casual conversation, very spartan. No fancy language. When listing alternatives use slashes not "or" — "React/TypeScript" not "React or TypeScript".
+2. REWRITE the role title the way a European tech recruiter would say it out loud. Not just shortened — rewritten so it sounds natural and human.
+   - "Senior Python Developer" → "Senior Python Engineer"
+   - "Sr. Software Engineer II (Backend)" → "Senior Backend Engineer"
+   - "Staff Backend Engineer (Go)" → "Staff Go Engineer"
+   - "Lead DevOps / SRE Engineer" → "Lead SRE"
+   - "Principal Full-Stack Engineer - React/Node" → "Principal Full-Stack Engineer"
+   - "Machine Learning Engineer - LLMs" → "ML Engineer"
+   - "Head of Engineering (Platform)" → "Head of Platform Engineering"
+   - "Engineering Manager - Mobile" → "Mobile Engineering Manager"
+   Key rule: the specialty leads, the level qualifies it. Always prefer "Engineer" over "Developer". Strip parentheticals, bracketed tags, team names, redundant suffixes.
 3. Do not hallucinate locations. If remote or unclear, omit location entirely (drop "{{LOCATION}} based" from the sentence).
 4. No exclamation points. No em dashes. Use commas instead.
-5. SHORTEN city names to how people actually say them in conversation:
-   "San Francisco" → "San Fran", "New York" → "NYC", "Los Angeles" → "LA", "Washington D.C." → "DC", "Las Vegas" → "Vegas". Drop state suffixes (", NC", ", TX", etc.).
-6. CLEAN and SHORTEN the company name to the casual version. Strip legal suffixes, geographic tags, generic descriptors.
-   - "Acme Technologies, Inc." → "Acme"
-   - "Globex Solutions Group" → "Globex"
-   - "The Pivot Group" → "Pivot Group"
-   Remove: Inc, LLC, Corp, Ltd, Co., USA, GmbH, AG, SA, Group, Services, Solutions, Holdings, International, Technologies, "The" prefix, state/country suffixes.
-7. Keep proper capitalization for names and titles.
-8. SPECIALTY_1 and SPECIALTY_2: pick 2 things from the JD that require specific framework expertise, niche tooling, or domain regulation (e.g., "Kafka at scale", "Rust on embedded", "FedRAMP compliance"). Avoid generics like "problem solving" or "team player".
-9. YEARS: extract the years-of-experience requirement if mentioned (e.g., "8+ years", "5-7 years"). If not stated, omit gracefully.
+5. European city handling: London/Berlin/Amsterdam/Paris/Dublin/Munich/Madrid/Barcelona/Lisbon/Stockholm/Copenhagen/Helsinki/Oslo/Zurich/Vienna stay as-is. "Greater London" → "London". "Île-de-France" / "Paris, Île-de-France" → "Paris". "Greater Manchester" → "Manchester". Strip district suffixes (e.g. "Berlin-Mitte" → "Berlin"). Keep remote work as implicit (omit location).
+6. CLEAN and SHORTEN the company name to the casual version. Strip legal suffixes, country tags, generic filler.
+   - "Klarna Bank AB" → "Klarna"
+   - "N26 GmbH" → "N26"
+   - "Delivery Hero SE" → "Delivery Hero"
+   - "Wise Payments Limited" → "Wise"
+   - "Mistral AI SAS" → "Mistral"
+   - "Revolut Ltd" → "Revolut"
+   - "Booking.com B.V." → "Booking.com"
+   - "Zalando SE" → "Zalando"
+   Remove: Ltd, Limited, plc, GmbH, AG, SAS, SA, SARL, B.V., N.V., S.r.l., S.p.A., A/S, AB, Oy, Oyj, SE, Group, Holdings, International, (UK), (EU), "The" prefix.
+7. Keep proper capitalization for names, brands, and titles (React, TypeScript, Kubernetes, AWS, PostgreSQL, GitHub, GitLab).
+8. SPECIALTY_1 and SPECIALTY_2: pick 2 things from the JD that are genuinely specific to this role. Prefer concrete tech/tools over soft skills. Examples: "React/TypeScript", "Next.js app router", "Go microservices", "Rust async runtime", "Kubernetes on AWS", "Terraform IaC", "event-driven architecture with Kafka", "PostgreSQL query optimisation", "distributed systems at scale", "ML model deployment on GCP", "GraphQL federation", "SRE incident response", "CI/CD with GitHub Actions", "platform engineering for 100+ services". Avoid generics like "team player" or "good communicator".
+9. YEARS: extract the years-of-experience requirement if mentioned. NEVER write less than "3+ years" — if the JD states fewer years (e.g. "1+ year", "2 years") or doesn't state a requirement at all, default to "3+ years". Examples of valid output: "3+ years", "5+ years in production", "8 years on distributed systems".
 10. ALWAYS keep paragraph structure with line breaks between paragraphs. Never collapse into one block.
 11. Limit output to 75 words max.
 12. Respond in JSON only: {{"body": "the email body here", "cleaned_role": "the cleaned singular role title you used"}}. Use \\n\\n for paragraph breaks in the JSON string.
@@ -103,7 +112,7 @@ Company Description: {company_description}
 Job Description: {job_description}
 """
 
-PREAMBLE = """You are writing outbound emails for a tech recruitment company that places engineering talent into permanent roles.
+PREAMBLE = """You are writing outbound emails for a pan-European tech recruitment company that places engineers, engineering managers, and technical leaders into both permanent and contract roles across product, platform, backend, frontend, full-stack, DevOps/SRE, data, ML, and mobile teams.
 
 Your role is to write a compelling email body to get in touch with a decision maker at a company actively hiring tech talent.
 
@@ -219,7 +228,7 @@ def main():
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing email bodies")
     parser.add_argument("--limit", type=int, default=0, help="Max leads (0 = all)")
     parser.add_argument("--preview", type=int, default=0, help="Preview N emails without writing to sheet")
-    parser.add_argument("--template", help="Path to template text file (overrides TEMPLATE_PERM constant)")
+    parser.add_argument("--template", help="Path to template text file (overrides TEMPLATE constant)")
     args = parser.parse_args()
 
     api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -227,14 +236,14 @@ def main():
         print("ERROR: ANTHROPIC_API_KEY not set in .env")
         return
 
-    template_text = TEMPLATE_PERM
+    template_text = TEMPLATE
     if args.template:
         with open(args.template) as f:
             template_text = f.read().strip()
         print(f"  Loaded template from: {args.template}")
 
     if "<<TBD" in template_text and args.preview == 0:
-        print("ERROR: TEMPLATE_PERM is still a placeholder.")
+        print("ERROR: TEMPLATE is still a placeholder.")
         print("  Slot in the user-approved copy at the top of generate_emails.py,")
         print("  or pass --template /path/to/copy.txt. Run with --preview to test scaffolding.")
         return
@@ -315,7 +324,7 @@ def main():
                 result = future.result()
                 if result:
                     first_name, last_name = split_name(lead["dm_name"])
-                    full_body = f"Hey {first_name},\n\n{result['body']}"
+                    full_body = f"Hi {first_name},\n\n{result['body']}"
                     r = {
                         "sheet_row": lead["sheet_row"],
                         "first_name": first_name,
@@ -348,7 +357,7 @@ def main():
                 })
                 updates.append({
                     "range": f"'{tab_name}'!{col_letter(COL_TEMPLATE_VARIANT)}{r['sheet_row']}",
-                    "values": [["perm"]],
+                    "values": [["all"]],
                 })
                 updates.append({
                     "range": f"'{tab_name}'!{col_letter(COL_CLEANED_ROLE)}{r['sheet_row']}",

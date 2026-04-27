@@ -1,30 +1,38 @@
 """
-Phase 2: Find tech decision makers via Google Search + LinkedIn
+Phase 2: Find tech decision makers via Google Search + LinkedIn.
 
-Rules (user-defined for tech recruitment):
-  <50 employees           → Pass 1: CEO/Founder, Pass 2: CTO
-  50-200 employees        → Pass 1: CTO,         Pass 2: CEO/Founder
-  200-500 + C-level role  → Pass 1: CEO/Founder, Pass 2: CTO
-  200-500 + other role    → Pass 1: HR (TA/HR Director/Head of People), Pass 2: CTO
+REQUIRES col L (Company Website) to be populated first via find_company_domains.py.
+Rows without a verified domain are skipped — we won't outreach without the
+domain-anchored verification step.
+
+Rules (pan-European tech firms):
+  <50 employees           → Pass 1: CEO/Founder,                Pass 2: CTO/VP Eng
+  50-200 employees        → Pass 1: CTO/VP Eng,                 Pass 2: CEO/Founder
+  200-500 + C-level role  → Pass 1: CEO/Founder,                Pass 2: CTO
+  200-500 + normal role   → Pass 1: HR Director / Head of TA,   Pass 2: CTO
   >500 employees          → Should never reach Phase 2 (filtered at pull_dataset)
-                            but if present, also skipped here
-  Unknown size            → Pass 1: CTO, Pass 2: CEO/Founder
+  Unknown size            → Pass 1: CTO/VP Eng,                 Pass 2: CEO/Founder
+
+Why HR enters at 200 (vs civil's 500): tech firms professionalise TA/People ops
+earlier because eng-hiring volume is higher. Below 200 eng leadership still
+runs intros; at 200+ there is usually a dedicated TA/HRBP who owns the pipeline.
 
 Each pass:
   1. Build Google Search query: "{company}" ("{title vars}") site:linkedin.com/in/
   2. Run Apify Google Search Scraper (batched)
-  3. Parse LinkedIn snippet → person_name + title
-  4. Validate title against target keyword set
+  3. Parse LinkedIn snippet → person_name, title, employer-from-snippet
+  4. Validate: title matches target keywords AND snippet mentions the
+     target company OR target domain.
   5. Reject noise via is_leadership_title (assistant, intern, etc.)
 """
 
 import os
 import re
 import json
-import time
 import argparse
 import requests
 from urllib.parse import urlparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -39,13 +47,15 @@ APIFY_TOKEN = os.getenv("APIFY_API_TOKEN")
 APIFY_ACTOR = "apify~google-search-scraper"
 APIFY_BASE = "https://api.apify.com/v2"
 
-BATCH_SIZE = 10
-SHEET_WRITE_DELAY = 1.5
+BATCH_SIZE = 25
+SHEET_WRITE_DELAY = 0.5
+BATCH_WORKERS = 5
 MAX_EMPLOYEES = 500
 
 # --- Column indices (0-based, matching HEADERS in pull_dataset.py) ---
 COL_JOB_TITLE = 1       # B: Job Title
 COL_COMPANY_NAME = 10   # K: Company Name
+COL_COMPANY_WEBSITE = 11  # L: Company Website (verified domain)
 COL_COMPANY_SIZE = 12   # M: Company Size
 COL_DM_NAME = 19        # T: DM Name
 COL_DM_TITLE = 20       # U: DM Title
@@ -53,14 +63,14 @@ COL_LINKEDIN_URL = 21   # V: LinkedIn URL
 
 # --- C-level detection (triggers "200-500 + C-level → CEO" branch) ---
 C_LEVEL_KEYWORDS = [
-    r"\bcto\b", r"\bcio\b", r"\bciso\b", r"\bcdo\b", r"\bcoo\b", r"\bceo\b",
-    r"\bcpo\b", r"\bcfo\b", r"\bchro\b", r"\bcaio\b",
-    r"\bchief\s+technolog", r"\bchief\s+technical", r"\bchief\s+information",
-    r"\bchief\s+data", r"\bchief\s+operating", r"\bchief\s+executive",
-    r"\bchief\s+product", r"\bchief\s+ai\b", r"\bchief\s+architect",
-    r"\bvp\s+of\s+engineering", r"\bvp\s+engineering",
-    r"\bvice\s+president\s+of\s+engineering",
-    r"\bhead\s+of\s+engineering",
+    r"\bceo\b", r"\bcoo\b", r"\bcfo\b", r"\bcio\b", r"\bcto\b",
+    r"\bchro\b", r"\bcpo\b",
+    r"\bchief\s+executive", r"\bchief\s+operating", r"\bchief\s+financial",
+    r"\bchief\s+information", r"\bchief\s+technology", r"\bchief\s+technical",
+    r"\bmanaging\s+director\b", r"\bmd\b", r"\bpresident\b", r"\bfounder\b", r"\bco-founder\b",
+    r"\bengineering\s+director\b", r"\bdirector\s+of\s+engineering\b",
+    r"\bvp\s+of\s+engineering\b", r"\bvp\s+engineering\b",
+    r"\bhead\s+of\s+engineering\b",
 ]
 
 
@@ -74,7 +84,7 @@ def is_c_level_role(job_title):
 # --- Employee count parsing ---
 
 def parse_employee_count(count_str):
-    """Returns the upper bound of the range as int, or None if unparseable.
+    """Upper bound of the range as int, or None if unparseable.
     '11 to 50' → 50, '201 to 500' → 500, '10,000+' → 10000."""
     if not count_str:
         return None
@@ -93,8 +103,7 @@ def parse_employee_count(count_str):
 
 
 def parse_employee_count_lower(count_str):
-    """Lower bound of the range, used for the >500 skip check
-    (matches pull_dataset.py's filter logic)."""
+    """Lower bound of the range, used for the >MAX_EMPLOYEES skip check."""
     if not count_str:
         return None
     s = str(count_str).strip().replace(",", "").replace("+", "")
@@ -108,35 +117,46 @@ def parse_employee_count_lower(count_str):
         return None
 
 
-# --- DM targeting rules (user-defined for tech) ---
+# --- DM targeting rules (tech) ---
 
 def determine_target(job_title, employee_count_str):
     """Returns ('ceo'|'cto'|'hr', reasoning)."""
     count = parse_employee_count(employee_count_str)
 
     if count is None:
-        return "cto", "Unknown company size, defaulting to CTO"
+        return "cto", "Unknown company size, defaulting to CTO/VP Engineering"
 
     if count < 50:
-        return "ceo", f"Small company ({count} employees), targeting CEO/Founder"
+        return "ceo", f"Small firm ({count} employees), targeting CEO/Founder"
 
     if count <= 200:
-        return "cto", f"Mid-small company ({count} employees), targeting CTO"
+        return "cto", f"Mid-small firm ({count} employees), targeting CTO/VP Engineering"
 
     if count <= 500:
         if is_c_level_role(job_title):
-            return "ceo", f"Hiring C-level ({job_title}) at mid-size company ({count}), targeting CEO/Founder"
-        return "hr", f"Mid-size company ({count} employees), non-C-level role, targeting HR/TA"
+            return "ceo", f"Hiring C-level ({job_title}) at {count}-employee firm, targeting CEO/Founder"
+        return "hr", f"Mid firm ({count} employees), normal role, targeting HR Director/Head of TA"
 
-    # Should not reach here (filtered upstream); fall back to CTO if it does
-    return "cto", f"Large company ({count} employees) — should have been filtered upstream"
+    return "cto", f"Larger firm ({count} employees) — should have been filtered upstream"
 
 
-def flip_target(target):
-    """Auto-retry: every category flips to CTO except CTO itself, which flips to CEO."""
-    if target == "cto":
+def fallback_target(pass1_target, employee_count_str):
+    """Pass 2 fallback:
+      pass1=ceo → cto
+      pass1=cto → hr  if ≥200 employees, else ceo
+      pass1=hr  → cto
+    Returns None when no further pass makes sense."""
+    count = parse_employee_count(employee_count_str)
+
+    if pass1_target == "ceo":
+        return "cto"
+    if pass1_target == "cto":
+        if count is not None and count >= 200:
+            return "hr"
         return "ceo"
-    return "cto"
+    if pass1_target == "hr":
+        return "cto"
+    return None
 
 
 # --- Google Search query builders ---
@@ -145,20 +165,25 @@ def build_search_query(company_name, target_level):
     if target_level == "ceo":
         return (
             f'"{company_name}" '
-            f'("CEO" OR "Founder" OR "Co-Founder" OR "Owner" OR "Managing Director" OR "President") '
+            f'("CEO" OR "Chief Executive" OR "Founder" OR "Co-Founder" OR "Co Founder" '
+            f'OR "Owner" OR "President" OR "Managing Director") '
             f'site:linkedin.com/in/'
         )
     if target_level == "cto":
         return (
             f'"{company_name}" '
-            f'("CTO" OR "Chief Technology Officer" OR "VP Engineering" OR "VP of Engineering" OR "Head of Engineering") '
+            f'("CTO" OR "Chief Technology" OR "Chief Technical" '
+            f'OR "VP Engineering" OR "VP of Engineering" OR "SVP Engineering" '
+            f'OR "Head of Engineering" OR "Engineering Director" OR "Director of Engineering") '
             f'site:linkedin.com/in/'
         )
     if target_level == "hr":
         return (
             f'"{company_name}" '
-            f'("Talent Acquisition" OR "HR Director" OR "Director of HR" OR "Head of People" OR "Head of HR" '
-            f'OR "Head of Talent" OR "VP People" OR "VP HR" OR "Chief People Officer") '
+            f'("HR Director" OR "Head of HR" OR "Head of People" OR "People Director" '
+            f'OR "VP of People" OR "VP People" OR "Chief People Officer" OR "CHRO" '
+            f'OR "Talent Acquisition Director" OR "Head of Talent" OR "Head of Talent Acquisition" '
+            f'OR "VP Talent" OR "Director of Talent" OR "Head of Recruitment") '
             f'site:linkedin.com/in/'
         )
     return f'"{company_name}" "CTO" site:linkedin.com/in/'
@@ -166,37 +191,74 @@ def build_search_query(company_name, target_level):
 
 # --- LinkedIn snippet parsing ---
 
+def _name_words(company_name):
+    """Normalize a company name into its identifying word tokens."""
+    noise = {"inc", "llc", "ltd", "corp", "co", "the", "of", "and", "&",
+             "a", "an", "for", "in", "at", "by", "uk", "plc", "llp",
+             "group", "holdings", "limited", "company",
+             "gmbh", "ag", "sas", "sa", "sarl", "bv", "nv", "srl", "spa",
+             "oy", "oyj", "ab", "technologies", "technology", "tech", "software"}
+    words = re.split(r"[\s,.\-&/()+]+", (company_name or "").lower())
+    return [w for w in words if len(w) > 2 and w not in noise]
+
+
 def parse_linkedin_result(organic_result):
-    """Extract person name and title from a LinkedIn search result."""
+    """Extract (person_name, role_title, url, employer_hint, description)."""
     title = organic_result.get("title", "")
     url = organic_result.get("url", "")
+    description = organic_result.get("description", "") or organic_result.get("snippet", "")
 
     if "linkedin.com/in/" not in url:
-        return None, None, None
+        return None, None, None, "", ""
 
-    # Strip " | LinkedIn" suffix
     title = re.sub(r"\s*[|\-–]\s*LinkedIn\s*$", "", title, flags=re.IGNORECASE).strip()
 
-    # "Name - Title - Company" or "Name – Title at Company"
+    employer_hint = ""
     parts = re.split(r"\s*[-–]\s*", title, maxsplit=2)
+    person_name = ""
+    result_title = ""
+
     if len(parts) >= 2:
         person_name = parts[0].strip()
         result_title = parts[1].strip()
-        result_title = re.sub(r"\s+at\s+.*$", "", result_title, flags=re.IGNORECASE).strip()
-        return person_name, result_title, url
+        m = re.search(r"\s+at\s+(.+)$", result_title, flags=re.IGNORECASE)
+        if m:
+            employer_hint = m.group(1).strip()
+            result_title = result_title[:m.start()].strip()
+        elif len(parts) >= 3:
+            employer_hint = parts[2].strip()
+        return person_name, result_title, url, employer_hint, description
 
-    # "Name, Title"
     parts = title.split(",", 1)
     if len(parts) == 2:
-        return parts[0].strip(), parts[1].strip(), url
+        return parts[0].strip(), parts[1].strip(), url, "", description
 
-    return None, None, url
+    return None, None, url, "", description
+
+
+def verify_employer(employer_hint, description, target_company, target_domain):
+    """Confirm this LinkedIn profile is actually for the target company."""
+    words = _name_words(target_company)
+    haystack = " ".join(filter(None, [employer_hint, description])).lower()
+    if not haystack:
+        return False
+
+    if target_domain:
+        dom = target_domain.lower().strip()
+        if dom and dom in haystack:
+            return True
+        label = dom.split(".")[0]
+        if len(label) >= 4 and label in haystack:
+            return True
+
+    if not words:
+        return False
+    matches = sum(1 for w in words if w in haystack)
+    return matches >= max(1, len(words) // 2)
 
 
 # --- Validation ---
 
-# Hard rejects: even if "CTO" is in the title, if the person's primary role is
-# Assistant/Intern/etc., they're not the DM. Ported from scrape-tech-leads.
 HARD_REJECT_PATTERNS = [
     r"\bassistant\b", r"\bsecretary\b",
     r"\bintern\b", r"\bstudent\b", r"\bfellow\b",
@@ -209,14 +271,14 @@ HARD_REJECT_PATTERNS = [
 
 
 def is_leadership_title(title):
-    """Reject obvious noise. Mirrors scrape-tech-leads/find_dm.py."""
     t = (title or "").strip()
     if not t:
         return False
     primary = re.split(r"[,|;]", t)[0].strip().lower()
     primary_is_leader = bool(re.match(
-        r"(?:co-?)?(?:ceo|cto|coo|cio|cpo|chro|vp|founder|director|head|managing director|"
-        r"chief (?:executive|technology|operating|information|people|product|data|architect))",
+        r"(?:co-?)?(?:ceo|coo|cfo|cio|cto|chro|cpo|md|vp|svp|founder|owner|director|head|"
+        r"managing director|president|hr director|hr manager|people director|"
+        r"chief (?:executive|operating|financial|technology|technical|information|people|product))",
         primary, re.IGNORECASE,
     ))
     if not primary_is_leader:
@@ -227,7 +289,6 @@ def is_leadership_title(title):
 
 
 def validate_result(person_name, result_title, target_level):
-    """Validate that the search result matches the target category."""
     if not person_name or not result_title:
         return False
     if not is_leadership_title(result_title):
@@ -237,23 +298,26 @@ def validate_result(person_name, result_title, target_level):
 
     if target_level == "ceo":
         return any(kw in title_lower for kw in [
-            "ceo", "founder", "owner", "managing director", "president",
-            "co-founder", "cofounder", "chief executive",
-        ])
+            "ceo", "chief executive", "founder", "owner", "co-founder",
+            "cofounder", "president", "managing director",
+        ]) or title_lower.strip() in ("md", "ceo")
 
     if target_level == "cto":
         return any(kw in title_lower for kw in [
             "cto", "chief technology", "chief technical",
-            "vp engineering", "vp of engineering", "vice president of engineering",
-            "head of engineering",
+            "vp engineering", "vp of engineering", "svp engineering",
+            "head of engineering", "engineering director", "director of engineering",
+            "director of technology", "head of technology",
         ])
 
     if target_level == "hr":
-        ta_kw = ["talent acquisition", "hr ", " hr", "human resources", "people", "talent"]
-        rank_kw = ["director", "head of", "vp", "vice president", "chief", "manager"]
-        has_ta = any(kw in title_lower for kw in ta_kw)
-        has_rank = any(kw in title_lower for kw in rank_kw)
-        return has_ta and has_rank
+        return any(kw in title_lower for kw in [
+            "hr director", "head of hr", "director of hr",
+            "head of people", "people director", "director of people",
+            "vp of people", "vp people", "chief people", "chro",
+            "head of talent", "talent acquisition director", "director of talent",
+            "head of recruitment", "recruitment director", "vp talent",
+        ])
 
     return False
 
@@ -302,7 +366,6 @@ def cell(row, idx):
 # --- Apify Google Search ---
 
 def apify_google_search(queries):
-    """Run Apify Google Search Scraper. Returns dict {query: [organic_results]}."""
     resp = requests.post(
         f"{APIFY_BASE}/acts/{APIFY_ACTOR}/run-sync-get-dataset-items",
         params={"token": APIFY_TOKEN},
@@ -311,7 +374,7 @@ def apify_google_search(queries):
             "resultsPerPage": 5,
             "maxPagesPerQuery": 1,
             "languageCode": "en",
-            "countryCode": "us",
+            "countryCode": "gb",
             "includeUnfilteredResults": False,
         },
         timeout=300,
@@ -332,7 +395,6 @@ def apify_google_search(queries):
 
 
 def process_batch(service, sheet_id, tab_name, leads, target_map, dry_run=False):
-    """Process a batch: build queries, search, parse, write."""
     queries = []
     query_to_lead = {}
 
@@ -346,7 +408,7 @@ def process_batch(service, sheet_id, tab_name, leads, target_map, dry_run=False)
         for query, lead in query_to_lead.items():
             target = target_map[lead["sheet_row"]]
             print(f"  [DRY RUN] Row {lead['sheet_row']}: {lead['company_name']} ({lead['employee_count']}) "
-                  f"hiring {lead['job_title']!r} → {target}")
+                  f"hiring {lead['job_title']!r} → {target}  domain={lead['domain']}")
         return 0, len(leads)
 
     search_results = apify_google_search(queries)
@@ -361,21 +423,24 @@ def process_batch(service, sheet_id, tab_name, leads, target_map, dry_run=False)
 
         matched = False
         for result in organic[:5]:
-            person_name, result_title, linkedin_url = parse_linkedin_result(result)
-            if person_name and validate_result(person_name, result_title, target):
-                updates.append({
-                    "sheet_row": lead["sheet_row"],
-                    "person_name": person_name,
-                    "result_title": result_title,
-                    "linkedin_url": linkedin_url,
-                })
-                print(f"    Row {lead['sheet_row']}: {lead['company_name']} → {person_name} ({result_title})")
-                found += 1
-                matched = True
-                break
+            person_name, result_title, linkedin_url, employer_hint, description = parse_linkedin_result(result)
+            if not person_name or not validate_result(person_name, result_title, target):
+                continue
+            if not verify_employer(employer_hint, description, lead["company_name"], lead["domain"]):
+                continue
+            updates.append({
+                "sheet_row": lead["sheet_row"],
+                "person_name": person_name,
+                "result_title": result_title,
+                "linkedin_url": linkedin_url,
+            })
+            print(f"    Row {lead['sheet_row']}: {lead['company_name']} → {person_name} ({result_title})")
+            found += 1
+            matched = True
+            break
 
         if not matched:
-            print(f"    Row {lead['sheet_row']}: {lead['company_name']} → NOT FOUND")
+            print(f"    Row {lead['sheet_row']}: {lead['company_name']} → NOT FOUND (no verified match)")
             not_found += 1
 
     if updates:
@@ -396,10 +461,10 @@ def process_batch(service, sheet_id, tab_name, leads, target_map, dry_run=False)
 
 
 def collect_leads(rows, target_fn, limit=0):
-    """Walk sheet rows and build the work queue."""
     leads = []
     target_map = {}
     skipped_too_big = 0
+    skipped_no_domain = 0
 
     for i, row in enumerate(rows):
         if limit > 0 and len(leads) >= limit:
@@ -412,6 +477,11 @@ def collect_leads(rows, target_fn, limit=0):
         if not company_name:
             continue
 
+        domain = cell(row, COL_COMPANY_WEBSITE)
+        if not domain or "." not in domain:
+            skipped_no_domain += 1
+            continue
+
         company_size = cell(row, COL_COMPANY_SIZE)
         size_lower = parse_employee_count_lower(company_size)
         if size_lower is not None and size_lower > MAX_EMPLOYEES:
@@ -420,11 +490,14 @@ def collect_leads(rows, target_fn, limit=0):
 
         job_title = cell(row, COL_JOB_TITLE)
         target, _ = target_fn(job_title, company_size)
+        if not target:
+            continue
         sheet_row = i + 2
 
         leads.append({
             "sheet_row": sheet_row,
             "company_name": company_name,
+            "domain": domain,
             "job_title": job_title,
             "employee_count": company_size,
         })
@@ -432,6 +505,8 @@ def collect_leads(rows, target_fn, limit=0):
 
     if skipped_too_big:
         print(f"  Skipped {skipped_too_big} rows (>{MAX_EMPLOYEES} employees)")
+    if skipped_no_domain:
+        print(f"  Skipped {skipped_no_domain} rows (no verified domain in col L)")
 
     return leads, target_map
 
@@ -446,15 +521,31 @@ def run_pass(service, sheet_id, tab_name, rows, pass_name, target_fn, limit=0, d
     total_found = 0
     total_not_found = 0
     num_batches = (len(leads) + BATCH_SIZE - 1) // BATCH_SIZE
+    batches = [leads[b * BATCH_SIZE:(b + 1) * BATCH_SIZE] for b in range(num_batches)]
 
-    for b in range(num_batches):
-        batch = leads[b * BATCH_SIZE:(b + 1) * BATCH_SIZE]
-        print(f"  Batch {b + 1}/{num_batches}")
-        found, not_found = process_batch(service, sheet_id, tab_name, batch, target_map, dry_run)
-        total_found += found
-        total_not_found += not_found
-        if not dry_run:
-            time.sleep(SHEET_WRITE_DELAY)
+    if dry_run:
+        for b, batch in enumerate(batches, 1):
+            print(f"  Batch {b}/{num_batches}")
+            found, not_found = process_batch(service, sheet_id, tab_name, batch, target_map, dry_run=True)
+            total_found += found
+            total_not_found += not_found
+        return total_found, total_not_found
+
+    with ThreadPoolExecutor(max_workers=BATCH_WORKERS) as pool:
+        futures = {pool.submit(process_batch, service, sheet_id, tab_name, batch, target_map, False): i
+                   for i, batch in enumerate(batches, 1)}
+        done = 0
+        for fut in as_completed(futures):
+            b = futures[fut]
+            done += 1
+            try:
+                found, not_found = fut.result()
+            except Exception as e:
+                print(f"  Batch {b}/{num_batches}: EXC {e}")
+                continue
+            total_found += found
+            total_not_found += not_found
+            print(f"  [{done}/{num_batches} batches complete] found={total_found} not_found={total_not_found}")
 
     return total_found, total_not_found
 
@@ -508,14 +599,14 @@ def main():
         ).execute()
         data_rows = result.get("values", [])[1:]
 
-        def flipped_target(job_title, company_size):
-            target, _ = determine_target(job_title, company_size)
-            flipped = flip_target(target)
-            return flipped, f"Retry with flipped target: {flipped}"
+        def fallback_target_fn(job_title, company_size):
+            pass1, _ = determine_target(job_title, company_size)
+            fb = fallback_target(pass1, company_size)
+            return fb, f"Fallback (pass1={pass1}): {fb}"
 
         found2, not_found2 = run_pass(
             service, sheet_id, tab_name, data_rows,
-            "Pass 2 (flipped targeting)", flipped_target,
+            "Pass 2 (size-aware fallback)", fallback_target_fn,
             limit=args.limit, dry_run=False,
         )
         print(f"\nPass 2 results: {found2} found, {not_found2} still not found")

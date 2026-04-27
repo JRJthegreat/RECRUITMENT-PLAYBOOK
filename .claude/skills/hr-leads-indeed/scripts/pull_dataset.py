@@ -15,6 +15,7 @@ Column layout (27 cols):
 """
 
 import os
+import re
 import json
 import time
 import argparse
@@ -36,6 +37,7 @@ APIFY_PAGE_SIZE = 1000
 
 BATCH_SIZE = 10
 TAB_NAME = "Leads"
+MAX_EMPLOYEES = 500
 
 HEADERS = [
     # Job Info (A-J)
@@ -172,6 +174,23 @@ def fmt_salary(val):
         return str(val)
 
 
+def parse_size_lower_bound(size_str):
+    """Indeed returns ranges like '11 to 50', '201 to 500', '1,001 to 5,000', '10,000+'.
+    Returns the lower bound as int, or None if unparseable."""
+    if not size_str:
+        return None
+    s = str(size_str).strip().replace(",", "").replace("+", "")
+    s = re.sub(r"\s+to\s+", "-", s, flags=re.IGNORECASE)
+    s = re.sub(r"[^\d\-].*$", "", s).strip()
+    if not s:
+        return None
+    parts = s.split("-")
+    try:
+        return int(parts[0])
+    except (ValueError, IndexError):
+        return None
+
+
 def map_to_row(item):
     emp = item.get("employer") or {}
     loc = item.get("location") or {}
@@ -264,16 +283,31 @@ def main():
     print(f"\n[2/3] Fetching dataset {args.dataset_id}...")
     items = fetch_dataset(args.dataset_id)
 
-    if args.limit > 0:
-        items = items[:args.limit]
-        print(f"  Limited to {len(items)} items")
+    # Filter + map
+    skipped_no_company = 0
+    skipped_too_big = 0
+    rows = []
 
-    # Map to rows
-    rows = [map_to_row(item) for item in items]
+    for item in items:
+        emp = item.get("employer") or {}
+        company_name = (emp.get("name") or "").strip()
+        if not company_name:
+            skipped_no_company += 1
+            continue
 
-    # Filter out rows with no company name
-    rows = [r for r in rows if r[10].strip()]
-    print(f"  {len(rows)} rows with company name")
+        size_lower = parse_size_lower_bound(emp.get("employeesCount", ""))
+        if size_lower is not None and size_lower > MAX_EMPLOYEES:
+            skipped_too_big += 1
+            continue
+
+        rows.append(map_to_row(item))
+
+        if args.limit > 0 and len(rows) >= args.limit:
+            break
+
+    print(f"  Skipped (no company name): {skipped_no_company}")
+    print(f"  Skipped (>{MAX_EMPLOYEES} employees): {skipped_too_big}")
+    print(f"  Kept: {len(rows)}")
 
     # Write to sheet
     print(f"\n[3/3] Writing {len(rows)} rows...")

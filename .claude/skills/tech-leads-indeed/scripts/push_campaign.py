@@ -1,10 +1,12 @@
 """
-Phase 5: Push tech leads from Google Sheets → Instantly campaign
+Phase 5: Push tech leads from Google Sheets → Instantly campaign.
 
-Reads leads with email + Body from the sheet, creates a fresh Indeed-specific
-Instantly campaign (or uses --campaign_id), adds leads, marks rows as added.
+Reads leads with email + Body from the sheet, creates a fresh pan-European
+tech Indeed campaign (or uses --campaign_id), adds leads, marks rows as
+added. No CAMPAIGN_MAP — campaign is always created per run via
+--campaign_name.
 
-No CAMPAIGN_MAP — campaign is always created per run via --campaign_name.
+Resume-safe: skips rows where "Added to Instantly" is already TRUE.
 """
 
 import os
@@ -73,7 +75,7 @@ def list_sending_accounts(api_key):
 
 
 def create_campaign(api_key, name, sending_accounts):
-    """Create a fresh tech Indeed campaign (4-step sequence, same shape as hr-leads-indeed)."""
+    """Create a fresh tech Indeed campaign (4-step sequence)."""
     payload = {
         "name": name,
         "email_list": sending_accounts,

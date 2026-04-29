@@ -1,6 +1,6 @@
 ---
 name: hr-leads-indeed
-description: US HR recruitment lead pipeline. Orchestrates Apify Indeed scrapes (valig/indeed-jobs-scraper) across an HR keyword × US-state grid with a 14-day filter, ingests to Google Sheets (≤500 employees), classifies out recruitment agencies and PEOs, dedupes by company, finds decision makers via Google Search, enriches emails via Connector OS, generates personalized outreach with Claude, and pushes to Instantly. Use when the user asks to run the HR Indeed lead pipeline, or provides a pre-existing Apify dataset ID for ingestion only.
+description: US HR recruitment lead pipeline. Orchestrates Apify Indeed scrapes (valig/indeed-jobs-scraper) across an HR keyword × US-state grid with a 14-day filter, ingests to Google Sheets (≤500 employees), classifies out recruitment agencies and PEOs, dedupes by company, AI-filters non-HR titles, resolves official company domains and LinkedIn-snippet headcounts, finds decision makers via domain-anchored Google Search, enriches emails via AnyMail Finder (person + /decision-maker fallback), generates personalized outreach with Claude, and pushes to Instantly. Use when the user asks to run the HR Indeed lead pipeline, or provides a pre-existing Apify dataset ID for ingestion only.
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent
 ---
 
@@ -8,7 +8,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent
 
 ## What This Skill Does
 
-Generates US HR leads from Indeed via Apify. Default flow: the skill runs the Apify `valig/indeed-jobs-scraper` actor across a keyword × US-state grid (last 14 days, ≤500 employees, US), classifies companies to drop recruitment agencies / PEOs / job boards, dedupes by company, finds decision makers via Google Search, enriches emails via Connector OS, generates outreach with Claude, and pushes to an Instantly campaign.
+Generates US HR leads from Indeed via Apify. Default flow: the skill runs the Apify `valig/indeed-jobs-scraper` actor across a keyword × US-state grid (last 14 days, ≤500 employees, US), classifies companies to drop recruitment agencies / PEOs / job boards, dedupes by company, AI-filters non-HR titles, resolves official domains and headcounts, finds decision makers via domain-anchored Google Search, enriches emails via AnyMail Finder, generates outreach with Claude, and pushes to an Instantly campaign.
 
 Manual override: `pull_dataset.py` still works for ingesting a dataset ID the user scraped by hand on Apify's web UI.
 
@@ -55,11 +55,14 @@ python3 -W ignore .claude/skills/hr-leads-indeed/scripts/find_company_sizes.py \
 python3 -W ignore .claude/skills/hr-leads-indeed/scripts/find_dm.py \
   --sheet_url "SHEET_URL" [--limit N] [--dry_run]
 
-# Phase 3 — Enrich emails via Connector OS (for DMs found in Phase 2)
+# Phase 3 — Enrich emails via AnyMail Finder (single pass: Mode A = /find-email/person
+# for rows where Phase 2 found a DM; Mode B = /find-email/decision-maker for rows
+# missing a DM but with a domain. Tier-aware AMF category routing via determine_target.)
 python3 -W ignore .claude/skills/hr-leads-indeed/scripts/enrich_emails.py \
   --sheet_url "SHEET_URL" [--limit N] [--dry_run]
 
-# Phase 3.5 — AMF rescue: fill DM Name + Email + Title for rows Phase 2 missed
+# Phase 3.5 — Optional AMF rescue with --retry_not_found support; useful to re-attempt
+# rows previously written with 'not_found' in col W
 python3 -W ignore .claude/skills/hr-leads-indeed/scripts/find_dm_amf.py \
   --sheet_url "SHEET_URL" [--limit N] [--dry_run] [--retry_not_found]
 
@@ -93,8 +96,12 @@ The user decides which template(s) to use and how to split (A/B, senior/non-seni
 - 200-1000 → VP HR / VP People
 - 1000+ → Director TA / Head of Recruiting (filtered out at Phase 1 by ≤500 cap)
 
-DM names found via Google Search: `"{company}" "{target title}" site:linkedin.com/in/`
-Validated by: company name match + title match. No location filtering.
+DM names found via domain-anchored Google Search:
+`("{company}" OR "{domain}") ("{title list}") site:linkedin.com/in/`
+Validated by: company-name match + title match + domain-anchor guard for generic names
+(rows whose company name lacks any distinctive ≥5-char token are rejected unless the
+domain literally appears in the LinkedIn snippet — this stops false positives on
+companies like "Institutes of Health"). No location filtering.
 
 ---
 
@@ -123,9 +130,8 @@ First Name | Last Name | Email Body | Added to Instantly
 
 ```
 APIFY_API_TOKEN=...        # Apify dataset fetch + Google Search actor + Indeed scraper
-SSM_API_KEY=...            # Connector OS email finder (Phase 3)
-ANYMAILFINDER_API_KEY=...  # AMF /decision-maker rescue (Phase 3.5)
-ANTHROPIC_API_KEY=...      # Claude email generation + Haiku classification
+ANYMAILFINDER_API_KEY=...  # AMF email enrichment (Phase 3 + 3.5)
+ANTHROPIC_API_KEY=...      # Claude email generation + Haiku classification + AI HR filter
 INSTANTLY_API_KEY=...      # Campaign push
 ```
 

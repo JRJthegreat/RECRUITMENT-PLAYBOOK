@@ -1,0 +1,29 @@
+# Secrets / credentials
+.env
+.env.*
+!.env.example
+.claude/.env
+.claude/.env.*
+.claude/token.json
+.claude/credentials.json
+*.pem
+*.key
+
+# Local state
+.claude/scheduled_tasks.lock
+.claude/cache/
+.claude/scripts/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

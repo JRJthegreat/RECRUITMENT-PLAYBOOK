@@ -91,10 +91,13 @@ The user decides which template(s) to use and how to split (A/B, senior/non-seni
 ## DM Targeting Rules (Phase 2)
 
 - Senior HR role (VP/Director/Head/C-suite) → CEO
-- Unknown company size → CEO
-- <200 employees → CEO/Founder
-- 200-1000 → VP HR / VP People
-- 1000+ → Director TA / Head of Recruiting (filtered out at Phase 1 by ≤500 cap)
+- Unknown company size → HR Manager / Head of People primary, **CEO/Founder via fallback**
+- <50 employees → CEO/Founder
+- 50-200 → HR Manager / Head of People
+- 200-500 → VP HR / VP People
+- 500+ → filtered out at Phase 1 by ≤500 cap
+
+Fallback chain: `ceo → vp_hr → hr_manager → ceo`. Each row gets two passes — primary tier, then the next tier on miss.
 
 DM names found via domain-anchored Google Search:
 `("{company}" OR "{domain}") ("{title list}") site:linkedin.com/in/`

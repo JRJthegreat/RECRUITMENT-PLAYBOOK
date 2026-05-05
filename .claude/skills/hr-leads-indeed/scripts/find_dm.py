@@ -118,12 +118,7 @@ def determine_target(job_title, employee_count_str):
         return "ceo", f"Hiring senior HR leader ({job_title}); target CEO/Founder"
 
     if count is None:
-        if is_hr_team_signal(job_title):
-            return "vp_hr", (
-                f"Unknown size; hiring {job_title} implies dedicated HR team — "
-                f"target VP HR"
-            )
-        return "ceo", "Unknown size; defaulting to CEO/Founder"
+        return "hr_manager", "Unknown size; target HR first (CEO/Founder via fallback)"
 
     if count < 50:
         return "ceo", f"Tiny company ({count} emp); target CEO/Founder"

@@ -42,38 +42,81 @@ ACTOR_ID = "valig~indeed-jobs-scraper"
 SYNC_URL = f"https://api.apify.com/v2/acts/{ACTOR_ID}/run-sync-get-dataset-items"
 
 # Pan-European tech hiring keywords. Each actor run takes ONE keyword.
+# Spread covers core IC roles + AI/ML specialties + fintech-flavoured titles.
+# C-level (CTO, Head of Eng) and Eng Manager removed — those are exec-search,
+# not Indeed-search at ≤500 emp firms.
 DEFAULT_KEYWORDS = [
+    # Core IC engineering
     "Backend Engineer",
     "Frontend Engineer",
     "Full Stack Engineer",
     "DevOps Engineer",
     "Data Engineer",
-    "Machine Learning Engineer",
     "Site Reliability Engineer",
     "Mobile Engineer",
+    "iOS Engineer",
+    "Android Engineer",
     "QA Engineer",
-    "Engineering Manager",
-    "Head of Engineering",
-    "CTO",
+    "Platform Engineer",
+    "Cloud Engineer",
+    "Security Engineer",
+    "Embedded Engineer",
+    "Staff Engineer",
+    "Solutions Engineer",
+    # AI / ML
+    "Machine Learning Engineer",
+    "AI Engineer",
+    "LLM Engineer",
+    "Applied AI Engineer",
+    "Generative AI Engineer",
+    "Computer Vision Engineer",
+    "NLP Engineer",
+    "MLOps Engineer",
+    "Data Scientist",
+    # Fintech / specialty
+    "Payments Engineer",
+    "Quant Developer",
+    "Blockchain Engineer",
+    "Trading Systems Engineer",
+    # Product (we flipped the AI filter to KEEP — tech firms hire PMs)
+    "Product Manager",
 ]
 
 # (city, Indeed country code) pairs. Each keyword × city run pins the
 # domain so Indeed returns local results. Country codes follow ISO-3166-1
 # alpha-2 lowercase (Apify actor expects them that way).
+#
+# Order matters: UK cities first (highest yield given language overlap with
+# proof companies), then continental EU. Resume-safe duplicates dropped at
+# ingest, so cities can be commented in/out without breaking re-runs.
 DEFAULT_CITIES = [
-    ("London", "gb"), ("Manchester", "gb"),
+    # UK priority block
+    ("London", "uk"),
+    ("Manchester", "uk"),
+    ("Birmingham", "uk"),
+    ("Leeds", "uk"),
+    ("Edinburgh", "uk"),
+    ("Bristol", "uk"),
+    ("Cambridge", "uk"),
+    ("Oxford", "uk"),
+    ("Glasgow", "uk"),
+    ("Liverpool", "uk"),
+    ("Newcastle", "uk"),
+    ("Sheffield", "uk"),
+    # Continental EU
     ("Dublin", "ie"),
     ("Amsterdam", "nl"),
-    ("Berlin", "de"), ("Munich", "de"),
+    ("Berlin", "de"),
+    ("Munich", "de"),
     ("Paris", "fr"),
-    ("Madrid", "es"), ("Barcelona", "es"),
+    ("Madrid", "es"),
+    ("Barcelona", "es"),
     ("Lisbon", "pt"),
     ("Stockholm", "se"),
     ("Copenhagen", "dk"),
-    ("Helsinki", "fi"),
-    ("Oslo", "no"),
     ("Zurich", "ch"),
-    ("Vienna", "at"),
+    ("Warsaw", "pl"),
+    ("Milan", "it"),
 ]
 
 
@@ -82,7 +125,7 @@ def parse_city_spec(spec):
     if ":" in spec:
         city, cc = spec.split(":", 1)
         return city.strip(), cc.strip().lower()
-    return spec.strip(), "gb"
+    return spec.strip(), "uk"
 
 
 def parse_iso_date(s):

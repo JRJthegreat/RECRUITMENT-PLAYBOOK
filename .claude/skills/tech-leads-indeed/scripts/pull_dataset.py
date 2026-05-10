@@ -44,7 +44,7 @@ APIFY_PAGE_SIZE = 1000
 
 BATCH_SIZE = 10
 TAB_NAME = "Leads"
-MAX_EMPLOYEES = 500
+MAX_EMPLOYEES = 200
 
 HEADERS = [
     # Job Info (A-J)
@@ -201,9 +201,12 @@ def map_to_row(item):
     employees_count_raw = emp.get("employeesCount", "")
     employees_count = employees_count_raw if isinstance(employees_count_raw, str) else str(employees_count_raw or "")
 
+    job_id = item.get("key", "")
+    indeed_url = f"https://indeed.com/viewjob?jk={job_id}" if job_id else ""
+
     return [
         # Job Info (A-J)
-        item.get("key", ""),
+        job_id,
         item.get("title", ""),
         job_type,
         occ_str,
@@ -211,7 +214,7 @@ def map_to_row(item):
         sal_min,
         sal_max,
         sal_unit,
-        item.get("jobUrl", ""),
+        indeed_url,
         description,
         # Company (K-Q)
         emp.get("name", ""),

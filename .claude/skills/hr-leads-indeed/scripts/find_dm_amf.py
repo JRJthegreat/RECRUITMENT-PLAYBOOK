@@ -109,9 +109,8 @@ def extract_domain(value):
 # AMF-valid: ceo, engineering, finance, hr, it, logistics, marketing,
 # operations, buyer, sales.
 TIER_TO_CATEGORIES = {
-    "ceo":        ("ceo", "hr"),
-    "vp_hr":      ("hr", "ceo"),
-    "hr_manager": ("hr", "ceo"),
+    "ceo":       ("ceo", "hr"),
+    "senior_hr": ("hr", "ceo"),
 }
 
 

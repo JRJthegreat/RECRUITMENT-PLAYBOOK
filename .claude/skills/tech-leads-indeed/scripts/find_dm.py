@@ -6,16 +6,18 @@ Rows without a verified domain are skipped — we won't outreach without the
 domain-anchored verification step.
 
 Rules (pan-European tech firms):
-  <50 employees           → Pass 1: CEO/Founder,                Pass 2: CTO/VP Eng
-  50-200 employees        → Pass 1: CTO/VP Eng,                 Pass 2: CEO/Founder
-  200-500 + C-level role  → Pass 1: CEO/Founder,                Pass 2: CTO
-  200-500 + normal role   → Pass 1: HR Director / Head of TA,   Pass 2: CTO
+  <50 employees           → Pass 1: CTO/VP Eng/Head of Eng,    Pass 2: CEO/Founder,    Pass 3: HR/TA
+  50-200 employees        → Pass 1: CTO/VP Engineering,        Pass 2: CEO/Founder,    Pass 3: HR/TA
+  200-500 + C-level role  → Pass 1: CEO/Founder,               Pass 2: COO,            Pass 3: skip
+  200-500 + normal role   → Pass 1: VP/Head of Engineering,    Pass 2: CEO/Founder,    Pass 3: HR/TA
   >500 employees          → Should never reach Phase 2 (filtered at pull_dataset)
-  Unknown size            → Pass 1: CTO/VP Eng,                 Pass 2: CEO/Founder
+  Unknown size            → Pass 1: CTO/VP Engineering,        Pass 2: CEO/Founder,    Pass 3: HR/TA
 
-Why HR enters at 200 (vs civil's 500): tech firms professionalise TA/People ops
-earlier because eng-hiring volume is higher. Below 200 eng leadership still
-runs intros; at 200+ there is usually a dedicated TA/HRBP who owns the pipeline.
+Engineering leadership owns hiring at all sizes — TA inboxes are drowned in
+recruiter pitches and TA at 50–500 is gate-keeping rather than budget-holding.
+HR/TA stays as a Pass 3 safety net so we don't lose a lead just because eng
+leadership is unfindable on Google. Skipped only for C-level hires at 200-500
+where CEO/COO already covers the buyer.
 
 Each pass:
   1. Build Google Search query: "{company}" ("{title vars}") site:linkedin.com/in/
@@ -50,7 +52,7 @@ APIFY_BASE = "https://api.apify.com/v2"
 BATCH_SIZE = 25
 SHEET_WRITE_DELAY = 0.5
 BATCH_WORKERS = 5
-MAX_EMPLOYEES = 500
+MAX_EMPLOYEES = 200
 
 # --- Column indices (0-based, matching HEADERS in pull_dataset.py) ---
 COL_JOB_TITLE = 1       # B: Job Title
@@ -120,14 +122,18 @@ def parse_employee_count_lower(count_str):
 # --- DM targeting rules (tech) ---
 
 def determine_target(job_title, employee_count_str):
-    """Returns ('ceo'|'cto'|'hr', reasoning)."""
+    """Pass 1 target. Returns ('ceo'|'cto', reasoning).
+
+    Engineering leadership ('cto') is primary at all non-C-level sizes;
+    'ceo' only when hiring a C-level role at a 200-500 firm (where the
+    incumbent CTO/VP Eng IS the role being backfilled)."""
     count = parse_employee_count(employee_count_str)
 
     if count is None:
         return "cto", "Unknown company size, defaulting to CTO/VP Engineering"
 
     if count < 50:
-        return "ceo", f"Small firm ({count} employees), targeting CEO/Founder"
+        return "cto", f"Small firm ({count} employees), targeting CTO/Head of Eng (CEO fallback in Pass 2)"
 
     if count <= 200:
         return "cto", f"Mid-small firm ({count} employees), targeting CTO/VP Engineering"
@@ -135,28 +141,31 @@ def determine_target(job_title, employee_count_str):
     if count <= 500:
         if is_c_level_role(job_title):
             return "ceo", f"Hiring C-level ({job_title}) at {count}-employee firm, targeting CEO/Founder"
-        return "hr", f"Mid firm ({count} employees), normal role, targeting HR Director/Head of TA"
+        return "cto", f"Mid firm ({count} employees), normal role, targeting VP/Head of Engineering"
 
     return "cto", f"Larger firm ({count} employees) — should have been filtered upstream"
 
 
-def fallback_target(pass1_target, employee_count_str):
+def fallback_target(pass1_target):
     """Pass 2 fallback:
-      pass1=ceo → cto
-      pass1=cto → hr  if ≥200 employees, else ceo
-      pass1=hr  → cto
+      pass1=cto → ceo  (CEO/Founder as engineering-leadership fallback)
+      pass1=ceo → coo  (200-500 + C-level hire — COO as fallback)
     Returns None when no further pass makes sense."""
-    count = parse_employee_count(employee_count_str)
-
-    if pass1_target == "ceo":
-        return "cto"
     if pass1_target == "cto":
-        if count is not None and count >= 200:
-            return "hr"
         return "ceo"
-    if pass1_target == "hr":
-        return "cto"
+    if pass1_target == "ceo":
+        return "coo"
     return None
+
+
+def pass3_target(pass1_target):
+    """Pass 3 HR/TA safety net. Returns 'hr' or None.
+
+    Skips only when Pass 1 targeted 'ceo' (200-500 + C-level hire — CEO/COO
+    already covers the buyer; HR/TA isn't who hires another C-level)."""
+    if pass1_target == "ceo":
+        return None
+    return "hr"
 
 
 # --- Google Search query builders ---
@@ -177,13 +186,21 @@ def build_search_query(company_name, target_level):
             f'OR "Head of Engineering" OR "Engineering Director" OR "Director of Engineering") '
             f'site:linkedin.com/in/'
         )
+    if target_level == "coo":
+        return (
+            f'"{company_name}" '
+            f'("COO" OR "Chief Operating Officer" OR "Operations Director" OR "Director of Operations" '
+            f'OR "VP Operations" OR "VP of Operations" OR "Head of Operations") '
+            f'site:linkedin.com/in/'
+        )
     if target_level == "hr":
         return (
             f'"{company_name}" '
             f'("HR Director" OR "Head of HR" OR "Head of People" OR "People Director" '
             f'OR "VP of People" OR "VP People" OR "Chief People Officer" OR "CHRO" '
             f'OR "Talent Acquisition Director" OR "Head of Talent" OR "Head of Talent Acquisition" '
-            f'OR "VP Talent" OR "Director of Talent" OR "Head of Recruitment") '
+            f'OR "VP Talent" OR "Director of Talent" OR "Head of Recruitment" '
+            f'OR "HR Manager" OR "People Operations Manager" OR "People Partner") '
             f'site:linkedin.com/in/'
         )
     return f'"{company_name}" "CTO" site:linkedin.com/in/'
@@ -310,12 +327,19 @@ def validate_result(person_name, result_title, target_level):
             "director of technology", "head of technology",
         ])
 
+    if target_level == "coo":
+        return any(kw in title_lower for kw in [
+            "coo", "chief operating", "operations director", "director of operations",
+            "ops director", "vp operations", "vp of operations", "head of operations",
+        ])
+
     if target_level == "hr":
         return any(kw in title_lower for kw in [
-            "hr director", "head of hr", "director of hr",
+            "hr director", "hr manager", "head of hr", "director of hr",
             "head of people", "people director", "director of people",
             "vp of people", "vp people", "chief people", "chro",
             "head of talent", "talent acquisition director", "director of talent",
+            "talent acquisition manager", "people operations manager", "people partner",
             "head of recruitment", "recruitment director", "vp talent",
         ])
 
@@ -581,7 +605,7 @@ def main():
 
     found1, not_found1 = run_pass(
         service, sheet_id, tab_name, data_rows,
-        "Pass 1 (primary targeting)", determine_target,
+        "Pass 1 (engineering leadership / CEO for C-level hires)", determine_target,
         limit=args.limit, dry_run=args.dry_run,
     )
 
@@ -590,6 +614,9 @@ def main():
         return
 
     print(f"\nPass 1 results: {found1} found, {not_found1} not found")
+
+    found2 = not_found2 = 0
+    found3 = not_found3 = 0
 
     if not_found1 == 0:
         print("\nAll leads found in Pass 1!")
@@ -601,16 +628,37 @@ def main():
 
         def fallback_target_fn(job_title, company_size):
             pass1, _ = determine_target(job_title, company_size)
-            fb = fallback_target(pass1, company_size)
+            fb = fallback_target(pass1)
             return fb, f"Fallback (pass1={pass1}): {fb}"
 
         found2, not_found2 = run_pass(
             service, sheet_id, tab_name, data_rows,
-            "Pass 2 (size-aware fallback)", fallback_target_fn,
+            "Pass 2 (CEO/Founder, or COO for C-level hires)", fallback_target_fn,
             limit=args.limit, dry_run=False,
         )
         print(f"\nPass 2 results: {found2} found, {not_found2} still not found")
-        print(f"\nTotal: {found1 + found2} found, {not_found2} not found")
+
+        if not_found2 > 0:
+            result = service.spreadsheets().values().get(
+                spreadsheetId=sheet_id, range=f"'{tab_name}'!A:AC"
+            ).execute()
+            data_rows = result.get("values", [])[1:]
+
+            def hr_target_fn(job_title, company_size):
+                pass1, _ = determine_target(job_title, company_size)
+                t = pass3_target(pass1)
+                return t, f"Pass 3 HR/TA (skipped if pass1=ceo): {t}"
+
+            found3, not_found3 = run_pass(
+                service, sheet_id, tab_name, data_rows,
+                "Pass 3 (HR/TA safety net — skipped for C-level hires)", hr_target_fn,
+                limit=args.limit, dry_run=False,
+            )
+            print(f"\nPass 3 results: {found3} found, {not_found3} still not found")
+
+        total_found = found1 + found2 + found3
+        final_not_found = not_found3 if not_found2 > 0 else not_found2
+        print(f"\nTotal: {total_found} found, {final_not_found} not found")
 
     print(f"\nSheet: https://docs.google.com/spreadsheets/d/{sheet_id}/edit")
 

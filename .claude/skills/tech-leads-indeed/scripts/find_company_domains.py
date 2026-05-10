@@ -25,7 +25,7 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from anthropic import Anthropic
+from openai import AzureOpenAI
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ENV_PATH = os.path.join(SCRIPT_DIR, "..", "..", "..", ".env")
@@ -36,9 +36,14 @@ APIFY_TOKEN = os.getenv("APIFY_API_TOKEN")
 APIFY_ACTOR = "apify~google-search-scraper"
 APIFY_BASE = "https://api.apify.com/v2"
 
-ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
-LLM_MODEL = "claude-haiku-4-5-20251001"
-_anthropic = Anthropic(api_key=ANTHROPIC_KEY) if ANTHROPIC_KEY else None
+AZURE_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+AZURE_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+AZURE_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
+AZURE_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT_FAST", "gpt-4.1")
+_llm_client = (
+    AzureOpenAI(azure_endpoint=AZURE_ENDPOINT, api_key=AZURE_API_KEY, api_version=AZURE_API_VERSION)
+    if AZURE_ENDPOINT and AZURE_API_KEY else None
+)
 
 TAB_NAME = "Leads"
 COL_COMPANY = 10    # K
@@ -251,8 +256,8 @@ LLM_SYSTEM = (
 
 
 def llm_pick_domain(company_name, candidates):
-    """Ask Claude Haiku to pick the official website from pre-filtered candidates."""
-    if not candidates or _anthropic is None:
+    """Ask Azure OpenAI GPT-4.1 to pick the official website from pre-filtered candidates."""
+    if not candidates or _llm_client is None:
         return ""
 
     lines = [f"Company: {company_name}", "", "Candidates:"]
@@ -265,13 +270,16 @@ def llm_pick_domain(company_name, candidates):
     user_msg = "\n".join(lines)
 
     try:
-        resp = _anthropic.messages.create(
-            model=LLM_MODEL,
+        resp = _llm_client.chat.completions.create(
+            model=AZURE_DEPLOYMENT,
             max_tokens=60,
-            system=LLM_SYSTEM,
-            messages=[{"role": "user", "content": user_msg}],
+            temperature=0,
+            messages=[
+                {"role": "system", "content": LLM_SYSTEM},
+                {"role": "user", "content": user_msg},
+            ],
         )
-        answer = resp.content[0].text.strip().lower()
+        answer = (resp.choices[0].message.content or "").strip().lower()
         answer = re.sub(r"^https?://", "", answer)
         answer = answer.split("/")[0].strip().strip(".,'\"`")
         answer = re.sub(r"^www\.", "", answer)

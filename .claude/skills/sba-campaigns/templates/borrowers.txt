@@ -1,0 +1,7 @@
+{{greeting}},
+
+I work with a handful of community banks that fund rural businesses in {{state}} — mostly through SBA and USDA programs.
+
+Saw {{company}} in {{city}} and figured there might be fit if you're still exploring financing.
+
+Want me to make an intro?

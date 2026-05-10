@@ -1,5 +1,5 @@
 """
-Phase 4: Generate personalized tech outreach emails using Claude Opus 4.5.
+Phase 4: Generate personalized tech outreach emails using Azure OpenAI GPT-5.1.
 
 Reads lead data from the sheet, generates email copy per lead, and writes
 First Name, Last Name, Email Body, template_variant, cleaned_role columns.
@@ -13,7 +13,7 @@ import os
 import json
 import argparse
 import time
-import anthropic
+from openai import AzureOpenAI, RateLimitError
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
@@ -26,7 +26,11 @@ ENV_PATH = os.path.join(SCRIPT_DIR, "..", "..", "..", ".env")
 TOKEN_PATH = os.path.join(SCRIPT_DIR, "..", "..", "..", "token.json")
 load_dotenv(ENV_PATH)
 
-MODEL = "claude-opus-4-5"
+AZURE_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+AZURE_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+AZURE_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
+AZURE_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.1")
+
 MAX_WORKERS = 5
 MAX_RETRIES = 3
 BATCH_SIZE = 10
@@ -177,7 +181,7 @@ def split_name(full_name):
 
 
 def generate_email(client, lead, template_text, retry=0):
-    """Generate email copy for a single lead using Claude Opus 4.5."""
+    """Generate email copy for a single lead using Azure OpenAI GPT-5.1."""
     prompt = PREAMBLE + template_text + SHARED_RULES.format(
         company_name=lead["company_name"],
         job_title=lead["job_title"],
@@ -188,13 +192,16 @@ def generate_email(client, lead, template_text, retry=0):
     )
 
     try:
-        message = client.messages.create(
-            model=MODEL,
-            max_tokens=600,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": prompt}],
+        message = client.chat.completions.create(
+            model=AZURE_DEPLOYMENT,
+            max_completion_tokens=4000,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
         )
-        text = message.content[0].text.strip()
+        text = (message.choices[0].message.content or "").strip()
 
         if text.startswith("```"):
             lines = text.split("\n")
@@ -208,7 +215,7 @@ def generate_email(client, lead, template_text, retry=0):
 
         return {"body": body, "cleaned_role": cleaned_role}
 
-    except anthropic.RateLimitError:
+    except RateLimitError:
         if retry < MAX_RETRIES:
             wait = (2 ** retry) * 2
             time.sleep(wait)
@@ -231,9 +238,8 @@ def main():
     parser.add_argument("--template", help="Path to template text file (overrides TEMPLATE constant)")
     args = parser.parse_args()
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        print("ERROR: ANTHROPIC_API_KEY not set in .env")
+    if not (AZURE_ENDPOINT and AZURE_API_KEY):
+        print("ERROR: AZURE_OPENAI_ENDPOINT / AZURE_OPENAI_API_KEY not set in .env")
         return
 
     template_text = TEMPLATE
@@ -248,7 +254,7 @@ def main():
         print("  or pass --template /path/to/copy.txt. Run with --preview to test scaffolding.")
         return
 
-    print(f"=== Generate Tech Emails ({MODEL}) ===\n")
+    print(f"=== Generate Tech Emails (Azure OpenAI {AZURE_DEPLOYMENT}) ===\n")
 
     service = get_google_service()
     sheet_id = get_sheet_id_from_url(args.sheet_url)
@@ -299,7 +305,11 @@ def main():
     if not leads:
         return
 
-    client = anthropic.Anthropic(api_key=api_key)
+    client = AzureOpenAI(
+        azure_endpoint=AZURE_ENDPOINT,
+        api_key=AZURE_API_KEY,
+        api_version=AZURE_API_VERSION,
+    )
     total_batches = (len(leads) + BATCH_SIZE - 1) // BATCH_SIZE
     print(f"  Processing in {total_batches} batches of {BATCH_SIZE}\n")
 

@@ -34,7 +34,7 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
-from find_dm import determine_target
+from find_dm import determine_target, is_senior_hr
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ENV_PATH = os.path.join(SCRIPT_DIR, "..", "..", "..", ".env")
@@ -61,10 +61,33 @@ COL_LINKEDIN_URL = 21     # V
 COL_EMAIL = 22            # W
 
 TIER_TO_CATEGORIES = {
-    "ceo":        ("ceo", "hr"),
-    "vp_hr":      ("hr", "ceo"),
-    "hr_manager": ("hr", "ceo"),
+    "ceo":       ("ceo", "hr"),
+    "senior_hr": ("hr", "ceo"),
 }
+
+_DM_SENIOR_KEYWORDS = (
+    "vp ", " vp,", " vp ", "vice president", "svp", "evp",
+    "director", "head of", "head,",
+    "chro", "cpo", "chief people", "chief human resources", "chief talent", "chief hr",
+    "founder", "ceo", "president", "owner", "co-founder", "cofounder",
+)
+_HR_KEYWORDS = (
+    "hr", "human resource", "people", "talent", "recruit",
+    "payroll", "benefits", "employee relation", "workforce",
+)
+
+
+def _is_same_level_conflict(job_title, dm_title):
+    """Returns True if AMF returned a non-senior HR person for a non-senior HR job.
+    That's the person being hired, not the buyer — reject and force CEO tier."""
+    if not dm_title:
+        return False
+    t = dm_title.lower()
+    if any(kw in t for kw in _DM_SENIOR_KEYWORDS):
+        return False  # senior DM is fine
+    if not any(kw in t for kw in _HR_KEYWORDS):
+        return False  # non-HR DM is a different issue
+    return not is_senior_hr(job_title)  # both non-senior HR → conflict
 
 
 def get_sheet_id_from_url(url):
@@ -228,6 +251,15 @@ def process_dm(lead):
     domain = extract_domain(lead["company_website"])
     primary, fallback = categories_for(lead["job_title"], lead["company_size"])
     result = find_dm_with_fallback(domain, lead["company_name"], primary, fallback)
+
+    # If AMF returned a non-senior HR person for a non-senior HR job, the DM is
+    # the role being hired — reject it and force a CEO-tier lookup instead.
+    dm_title = result.get("person_title", "")
+    if dm_title and _is_same_level_conflict(lead["job_title"], dm_title):
+        ceo_result = find_dm_one_call(domain, lead["company_name"], "ceo")
+        if ceo_result.get("person_name"):
+            result = ceo_result
+
     return {**lead, **result, "primary": primary, "fallback": fallback}
 
 

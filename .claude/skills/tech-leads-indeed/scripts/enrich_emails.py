@@ -9,11 +9,12 @@ Two modes processed in one pass:
 
   Mode B (decision-maker lookup) — row has no DM Name:
     POST /v5.1/find-email/decision-maker  with domain + category
-    Size → category (pass 1, pass 2 fallback) for tech:
-      <50         → ceo          → engineering
-      50-200      → engineering  → ceo
-      200-500     → hr           → engineering
-      unknown     → engineering  → ceo
+    Size → category (primary, fallback) for tech:
+      <50         → engineering  → hr
+      50-200      → engineering  → hr
+      200-500     → engineering  → hr
+      unknown     → engineering  → hr
+    Engineering leadership owns hiring; HR/TA is the safety-net fallback.
     Writes name → T, title → U, linkedin → V, email → W.
 
 AMF auth: "Authorization: {API_KEY}" (no "Bearer").
@@ -145,18 +146,21 @@ def size_to_categories(size_str):
     AMF-valid categories: ceo, engineering, finance, hr, it, logistics,
     marketing, operations, buyer, sales. For tech hiring, "engineering" is
     the CTO/VP-Eng/Head-of-Engineering bucket; "hr" covers TA/People.
-    """
+
+    Primary is always 'engineering' — engineering leadership owns hiring at
+    all sizes ≤500. Fallback is 'hr' as TA/People safety net (or 'ceo' at
+    sizes where TA is unlikely to have a dedicated slot)."""
     upper = parse_size_upper(size_str)
     if upper is None:
-        return "engineering", "ceo"
+        return "engineering", "hr"
     if upper < 50:
-        return "ceo", "engineering"
+        return "engineering", "hr"
     if upper <= 200:
-        return "engineering", "ceo"
+        return "engineering", "hr"
     if upper <= 500:
-        return "hr", "engineering"
+        return "engineering", "hr"
     # >500 should have been filtered at Phase 1, but be defensive
-    return "hr", "engineering"
+    return "engineering", "hr"
 
 
 def find_email_person(full_name, domain, company_name):
@@ -312,6 +316,7 @@ def main():
                 "dm_name": dm_name,
                 "company_name": company_name,
                 "company_website": website,
+                "company_size": size,  # needed for Mode A → B cascade
             })
         elif not dm_name and not args.person_only:
             dm_leads.append({
@@ -345,6 +350,7 @@ def main():
     total_dm_found = total_dm_miss = 0
 
     # ── Mode A: person lookup
+    mode_a_fallback = []  # rows where person lookup failed → cascade to Mode B
     if person_leads:
         batches = (len(person_leads) + BATCH_SIZE - 1) // BATCH_SIZE
         print(f"--- Mode A: person email ({batches} batches) ---\n")
@@ -363,7 +369,49 @@ def main():
                         updates.append({"range": f"'{TAB_NAME}'!{col_letter(COL_EMAIL)}{sr}", "values": [[r["email"]]]})
                         total_email_found += 1
                     else:
-                        print(f"    row {sr}: {r['dm_name']} → not_found ({r['status']})")
+                        print(f"    row {sr}: {r['dm_name']} → not_found — queued for DM fallback")
+                        mode_a_fallback.append({
+                            "sheet_row": sr,
+                            "company_name": r["company_name"],
+                            "company_website": r["company_website"],
+                            "company_size": r.get("company_size", ""),
+                        })
+            batch_write(service, sheet_id, updates)
+            time.sleep(SHEET_WRITE_DELAY)
+
+    # ── Mode A fallback: person email failed → try AMF decision-maker
+    if mode_a_fallback:
+        batches = (len(mode_a_fallback) + BATCH_SIZE - 1) // BATCH_SIZE
+        print(f"\n--- Mode A fallback: DM finder for {len(mode_a_fallback)} person-not-found rows ({batches} batches) ---\n")
+        for b in range(batches):
+            batch = mode_a_fallback[b * BATCH_SIZE:(b + 1) * BATCH_SIZE]
+            print(f"  Batch AF{b + 1}/{batches}")
+            updates = []
+            with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
+                futures = {ex.submit(process_dm, l): l for l in batch}
+                for fut in as_completed(futures):
+                    r = fut.result()
+                    sr = r["sheet_row"]
+                    name = r.get("person_name") or ""
+                    email = r.get("email") or ""
+                    title = r.get("person_title") or ""
+                    li = r.get("person_linkedin") or ""
+                    cat = r.get("category_used", "?")
+                    if name:
+                        print(f"    row {sr} [{cat}]: {name} <{email or 'no-email'}> — {title} — {r['company_name']}")
+                        updates.append({"range": f"'{TAB_NAME}'!{col_letter(COL_DM_NAME)}{sr}", "values": [[name]]})
+                        if title:
+                            updates.append({"range": f"'{TAB_NAME}'!{col_letter(COL_DM_TITLE)}{sr}", "values": [[title]]})
+                        if li:
+                            updates.append({"range": f"'{TAB_NAME}'!{col_letter(COL_LINKEDIN)}{sr}", "values": [[li]]})
+                        if email:
+                            updates.append({"range": f"'{TAB_NAME}'!{col_letter(COL_EMAIL)}{sr}", "values": [[email]]})
+                            total_email_found += 1
+                        else:
+                            updates.append({"range": f"'{TAB_NAME}'!{col_letter(COL_EMAIL)}{sr}", "values": [["not_found"]]})
+                            total_email_miss += 1
+                    else:
+                        print(f"    row {sr}: no fallback DM found — {r['company_name']}")
                         updates.append({"range": f"'{TAB_NAME}'!{col_letter(COL_EMAIL)}{sr}", "values": [["not_found"]]})
                         total_email_miss += 1
             batch_write(service, sheet_id, updates)

@@ -23,7 +23,7 @@ import requests
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
-import anthropic
+from openai import AzureOpenAI
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
@@ -36,9 +36,11 @@ load_dotenv(ENV_PATH)
 APIFY_TOKEN = os.getenv("APIFY_API_TOKEN")
 APIFY_ACTOR = "apify~google-search-scraper"
 APIFY_BASE = "https://api.apify.com/v2"
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
-CLAUDE_MODEL = "claude-haiku-4-5-20251001"
+AZURE_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+AZURE_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+AZURE_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
+AZURE_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT_FAST", "gpt-4.1")
 
 TAB_NAME = "Leads"
 COL_COMPANY_NAME = 10    # K
@@ -46,6 +48,31 @@ COL_COMPANY_WEBSITE = 11 # L
 
 SEARCH_BATCH = 50
 CLAUDE_WORKERS = 8
+
+# Persistent cache for Apify Google Search results — keyed by sheet ID so we
+# don't re-pay the search cost when classification fails and we need to rerun.
+CACHE_DIR = os.path.join(SCRIPT_DIR, ".cache")
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+
+def cache_path(spreadsheet_id):
+    return os.path.join(CACHE_DIR, f"classify_search_{spreadsheet_id}.json")
+
+
+def load_search_cache(spreadsheet_id):
+    p = cache_path(spreadsheet_id)
+    if not os.path.exists(p):
+        return {}
+    try:
+        with open(p) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_search_cache(spreadsheet_id, results):
+    with open(cache_path(spreadsheet_id), "w") as f:
+        json.dump(results, f)
 
 
 # --- Google Sheets ---
@@ -86,24 +113,34 @@ def get_tab_sheet_id(service, spreadsheet_id, tab_name):
 # --- Apify Google Search ---
 
 def apify_google_search(queries):
-    """Returns dict {query: [organic_results]}."""
-    resp = requests.post(
-        f"{APIFY_BASE}/acts/{APIFY_ACTOR}/run-sync-get-dataset-items",
-        params={"token": APIFY_TOKEN},
-        json={
-            "queries": "\n".join(queries),
-            "resultsPerPage": 4,
-            "maxPagesPerQuery": 1,
-            "languageCode": "en",
-            "countryCode": "us",
-            "includeUnfilteredResults": False,
-        },
-        timeout=300,
-    )
+    """Returns dict {query: [organic_results]}. Swallows transient errors —
+    timeouts / network errors return {} so the outer loop can continue and
+    the cache survives."""
+    try:
+        resp = requests.post(
+            f"{APIFY_BASE}/acts/{APIFY_ACTOR}/run-sync-get-dataset-items",
+            params={"token": APIFY_TOKEN},
+            json={
+                "queries": "\n".join(queries),
+                "resultsPerPage": 4,
+                "maxPagesPerQuery": 1,
+                "languageCode": "en",
+                "countryCode": "us",
+                "includeUnfilteredResults": False,
+            },
+            timeout=300,
+        )
+    except requests.RequestException as e:
+        print(f"  ERROR from Apify: {type(e).__name__}: {e}")
+        return {}
     if resp.status_code not in (200, 201):
         print(f"  ERROR from Apify: HTTP {resp.status_code}: {resp.text[:300]}")
         return {}
-    items = resp.json()
+    try:
+        items = resp.json()
+    except ValueError:
+        print("  ERROR from Apify: invalid JSON")
+        return {}
     results = {}
     for item in items:
         query = item.get("searchQuery", {}).get("term", "")
@@ -165,15 +202,19 @@ def build_snippet_block(organic_results):
 def classify_one(client, company, organic):
     snippet_block = build_snippet_block(organic)
     try:
-        resp = client.messages.create(
-            model=CLAUDE_MODEL,
+        resp = client.chat.completions.create(
+            model=AZURE_DEPLOYMENT,
             max_tokens=300,
-            system=[{"type": "text", "text": CLASSIFY_SYSTEM, "cache_control": {"type": "ephemeral"}}],
-            messages=[{"role": "user", "content": CLASSIFY_USER_TEMPLATE.format(
-                company=company, snippets=snippet_block,
-            )}],
+            temperature=0,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": CLASSIFY_SYSTEM},
+                {"role": "user", "content": CLASSIFY_USER_TEMPLATE.format(
+                    company=company, snippets=snippet_block,
+                )},
+            ],
         )
-        text = resp.content[0].text.strip()
+        text = (resp.choices[0].message.content or "").strip()
         m = re.search(r"\{.*\}", text, re.DOTALL)
         if not m:
             return {"classification": "uncertain", "reason": "no JSON", "domain": ""}
@@ -216,18 +257,27 @@ def main():
         companies = companies[:args.limit]
     print(f"Unique companies: {len(companies)}\n")
 
-    print("[1/3] Running Google Search via Apify...")
-    results_by_query = {}
-    for i in range(0, len(companies), SEARCH_BATCH):
-        batch = companies[i:i + SEARCH_BATCH]
+    print("[1/3] Running Google Search via Apify (with cache)...")
+    results_by_query = load_search_cache(spreadsheet_id)
+    cached_hits = sum(1 for c in companies if f'"{c}"' in results_by_query)
+    print(f"  Cache: {cached_hits}/{len(companies)} companies already searched")
+
+    to_search = [c for c in companies if f'"{c}"' not in results_by_query]
+    for i in range(0, len(to_search), SEARCH_BATCH):
+        batch = to_search[i:i + SEARCH_BATCH]
         queries = [f'"{c}"' for c in batch]
         r = apify_google_search(queries)
         results_by_query.update(r)
-        print(f"  Searched {min(i + SEARCH_BATCH, len(companies))}/{len(companies)} "
+        save_search_cache(spreadsheet_id, results_by_query)
+        print(f"  Searched {min(i + SEARCH_BATCH, len(to_search))}/{len(to_search)} new "
               f"(returned {len(r)} queries)")
 
-    print(f"\n[2/3] Classifying with {CLAUDE_MODEL}...")
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    print(f"\n[2/3] Classifying with Azure OpenAI ({AZURE_DEPLOYMENT})...")
+    client = AzureOpenAI(
+        azure_endpoint=AZURE_ENDPOINT,
+        api_key=AZURE_API_KEY,
+        api_version=AZURE_API_VERSION,
+    )
     classifications = {}
 
     def run(company):

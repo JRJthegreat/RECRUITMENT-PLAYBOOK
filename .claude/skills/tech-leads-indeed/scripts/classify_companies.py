@@ -4,15 +4,13 @@ Phase 1.75: Classify each unique company as direct_employer / agency / job_board
 Pipeline:
   1. Read sheet → collect unique Company Names
   2. Batch Google Search via Apify (top 3 organic results per company)
-  3. Send snippets to Claude Haiku → classify + extract primary domain
+  3. Send snippets to Azure OpenAI GPT-4.1 → classify + extract primary domain
   4. Print report (companies + classification + reasoning)
   5. On --apply: delete rows where classification ∈ {agency, job_board},
      also write Company Website (col L) for survivors
 
 Why: the Apify Indeed dataset doesn't distinguish recruiters from direct employers.
 Cold outreach to agencies/job boards wastes sends — they don't hire, they resell.
-
-Cost: ~$0.50 for 200 companies (Apify $0.002/query + Haiku pennies).
 """
 
 import os
@@ -23,7 +21,7 @@ import requests
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
-import anthropic
+from openai import AzureOpenAI
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
@@ -36,16 +34,18 @@ load_dotenv(ENV_PATH)
 APIFY_TOKEN = os.getenv("APIFY_API_TOKEN")
 APIFY_ACTOR = "apify~google-search-scraper"
 APIFY_BASE = "https://api.apify.com/v2"
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
-CLAUDE_MODEL = "claude-haiku-4-5-20251001"
+AZURE_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+AZURE_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+AZURE_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
+AZURE_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT_FAST", "gpt-4.1")
 
 TAB_NAME = "Leads"
 COL_COMPANY_NAME = 10    # K
 COL_COMPANY_WEBSITE = 11 # L
 
 SEARCH_BATCH = 50       # Apify queries per call
-CLAUDE_WORKERS = 8      # Parallel Haiku classifications
+LLM_WORKERS = 8         # Parallel Azure OpenAI classifications
 
 
 # --- Google Sheets ---
@@ -161,15 +161,19 @@ def build_snippet_block(organic_results):
 def classify_one(client, company, organic):
     snippet_block = build_snippet_block(organic)
     try:
-        resp = client.messages.create(
-            model=CLAUDE_MODEL,
+        resp = client.chat.completions.create(
+            model=AZURE_DEPLOYMENT,
             max_tokens=300,
-            system=[{"type": "text", "text": CLASSIFY_SYSTEM, "cache_control": {"type": "ephemeral"}}],
-            messages=[{"role": "user", "content": CLASSIFY_USER_TEMPLATE.format(
-                company=company, snippets=snippet_block,
-            )}],
+            temperature=0,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": CLASSIFY_SYSTEM},
+                {"role": "user", "content": CLASSIFY_USER_TEMPLATE.format(
+                    company=company, snippets=snippet_block,
+                )},
+            ],
         )
-        text = resp.content[0].text.strip()
+        text = (resp.choices[0].message.content or "").strip()
         m = re.search(r"\{.*\}", text, re.DOTALL)
         if not m:
             return {"classification": "uncertain", "reason": "no JSON", "domain": ""}
@@ -224,9 +228,13 @@ def main():
         print(f"  Searched {min(i + SEARCH_BATCH, len(companies))}/{len(companies)} "
               f"(returned {len(r)} queries)")
 
-    # 3. Classify via Claude (parallel)
-    print(f"\n[2/3] Classifying with {CLAUDE_MODEL}...")
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    # 3. Classify via Azure OpenAI (parallel)
+    print(f"\n[2/3] Classifying with Azure OpenAI {AZURE_DEPLOYMENT}...")
+    client = AzureOpenAI(
+        azure_endpoint=AZURE_ENDPOINT,
+        api_key=AZURE_API_KEY,
+        api_version=AZURE_API_VERSION,
+    )
     classifications = {}
 
     def run(company):
@@ -234,7 +242,7 @@ def main():
         result = classify_one(client, company, organic)
         return company, result, organic
 
-    with ThreadPoolExecutor(max_workers=CLAUDE_WORKERS) as ex:
+    with ThreadPoolExecutor(max_workers=LLM_WORKERS) as ex:
         futures = [ex.submit(run, c) for c in companies]
         for i, fut in enumerate(as_completed(futures), 1):
             company, result, organic = fut.result()

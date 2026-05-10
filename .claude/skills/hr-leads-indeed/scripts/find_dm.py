@@ -1,11 +1,18 @@
 """
 Phase 2: Find decision makers via Google Search + LinkedIn.
 
+DM rule (decoupled from headcount):
+  - Senior HR being hired (Director / VP / Head / CHRO / CPO) → CEO.
+  - Anything else (HR Manager, Generalist, Recruiter, Specialist, etc.) →
+    search for a senior HR person already at the company (VP/Director/
+    Head of People/CHRO/CPO). If one exists, that person is the DM. If
+    not, the CEO is the DM (the role being hired *is* the senior HR
+    person — there's no one above them yet).
+
 For each lead without a DM Name:
-1. Determine target tier from company size + job seniority + job-title size proxy.
+1. Determine primary target from job seniority alone.
 2. Search Google via Apify: '"{company}" "{target titles}" site:linkedin.com/in/'.
-3. Parse the LinkedIn snippet (title field + description) into structured
-   fields: person name, current title, current company.
+3. Parse the LinkedIn snippet into person name, current title, current company.
 4. Validate strictly — title must start with a target keyword, no
    Former/Ex-/Previously markers, company tokens must overlap target,
    URL must be a real /in/<slug> profile, and (when col L is populated)
@@ -14,13 +21,12 @@ For each lead without a DM Name:
 
 Two passes per row max:
   Pass 1 = primary target from determine_target().
-  Pass 2 = next_tier() fallback (one step down/up).
+  Pass 2 = next_tier() fallback (senior_hr → ceo).
 After Pass 2 misses, the row is left empty for Phase 3.5 (AMF rescue).
 
 Tiers:
-  ceo         — small co (<50), senior HR hire, or unknown size with thin-HR signal
-  hr_manager  — 50-200 employees (small enough that HR Manager is the buyer)
-  vp_hr       — 200-500 employees, or unknown size with HR-team signal
+  ceo        — senior HR hire (no one in HR is above them) OR pass-2 fallback.
+  senior_hr  — search for VP / Director / Head / CHRO / CPO of HR/People at the co.
 """
 
 import os
@@ -54,6 +60,7 @@ COL_JOB_TITLE = 1        # B
 COL_COMPANY_NAME = 10    # K
 COL_COMPANY_WEBSITE = 11  # L
 COL_COMPANY_SIZE = 12    # M
+COL_CEO_NAME = 14        # O  (from Indeed's ceoName field)
 COL_DM_NAME = 19         # T
 COL_DM_TITLE = 20        # U
 COL_LINKEDIN_URL = 21    # V
@@ -110,31 +117,23 @@ def is_hr_team_signal(job_title):
 
 
 def determine_target(job_title, employee_count_str):
-    """Pick DM tier. Returns (target, reasoning).
-    Targets: 'ceo', 'hr_manager', 'vp_hr'."""
-    count = parse_employee_count(employee_count_str)
+    """Pick DM tier from job seniority alone. Returns (target, reasoning).
+    Targets: 'ceo', 'senior_hr'.
 
+    Headcount is deliberately NOT used here — under the new DM rule we
+    always look for a senior HR person first (unless the role being hired
+    IS senior, in which case there's no one above them and the CEO buys).
+    """
     if is_senior_hr(job_title):
         return "ceo", f"Hiring senior HR leader ({job_title}); target CEO/Founder"
-
-    if count is None:
-        return "hr_manager", "Unknown size; target HR first (CEO/Founder via fallback)"
-
-    if count < 50:
-        return "ceo", f"Tiny company ({count} emp); target CEO/Founder"
-
-    if count <= 200:
-        return "hr_manager", f"Small company ({count} emp); target HR Manager / Head of People"
-
-    return "vp_hr", f"Mid-size company ({count} emp); target VP HR / VP People"
+    return "senior_hr", "Non-senior hire; target senior HR person at the company first"
 
 
 def next_tier(target):
-    """Fallback chain: CEO → VP HR → HR Manager → CEO."""
+    """Fallback chain: senior_hr → ceo. CEO is terminal."""
     return {
-        "ceo": "vp_hr",
-        "vp_hr": "hr_manager",
-        "hr_manager": "ceo",
+        "senior_hr": "ceo",
+        "ceo": "ceo",
     }.get(target, "ceo")
 
 
@@ -159,18 +158,12 @@ def build_search_query(company_name, target_level, target_domain=""):
             f'("CEO" OR "Founder" OR "Owner" OR "Managing Director" OR "President") '
             f'site:linkedin.com/in/'
         )
-    if target_level == "vp_hr":
+    if target_level == "senior_hr":
         return (
             f'{co} '
-            f'("VP" OR "Vice President" OR "Head") '
-            f'("HR" OR "Human Resources" OR "People") '
-            f'site:linkedin.com/in/'
-        )
-    if target_level == "hr_manager":
-        return (
-            f'{co} '
-            f'("HR Manager" OR "Human Resources Manager" OR "Head of People" '
-            f'OR "People Operations Manager") '
+            f'("CHRO" OR "CPO" OR "Chief People" OR "Chief Human Resources" '
+            f'OR "VP" OR "Vice President" OR "SVP" OR "Director" OR "Head") '
+            f'("HR" OR "Human Resources" OR "People" OR "Talent") '
             f'site:linkedin.com/in/'
         )
     return f'{co} "CEO" site:linkedin.com/in/'
@@ -263,23 +256,23 @@ def title_matches_target(title_text, target_level):
         )
         return t.startswith(starts)
 
-    if target_level == "vp_hr":
-        # Must start with VP/Vice President/Head AND mention HR/People
-        starts_vp = t.startswith(("vp", "vice president", "head of", "head ,", "head, "))
+    if target_level == "senior_hr":
+        # Self-evidently HR titles: prefix alone qualifies.
+        hr_self_evident = (
+            "chro", "cpo", "chief people", "chief human resources",
+            "chief talent",
+        )
+        if t.startswith(hr_self_evident):
+            return True
+        # Otherwise: senior prefix (VP/SVP/EVP/Director/Head) + HR domain word.
+        starts_senior = t.startswith((
+            "vp", "vice president", "svp", "evp",
+            "director", "head of", "head ,", "head, ",
+        ))
         contains_hr = any(kw in t for kw in (
             "hr", "human resources", "people", "talent",
         ))
-        return starts_vp and contains_hr
-
-    if target_level == "hr_manager":
-        starts = (
-            "hr manager", "human resources manager", "human resource manager",
-            "head of people", "head of hr", "head of human resources",
-            "people operations manager", "people ops manager",
-            "people operations lead", "manager, human resources",
-            "manager, people", "manager of people",
-        )
-        return t.startswith(starts)
+        return starts_senior and contains_hr
 
     return False
 
@@ -554,6 +547,48 @@ def write_updates(service, sheet_id, tab_name, updates):
     ).execute()
 
 
+def prefill_ceo_from_col_o(service, sheet_id, tab_name, data_rows, dry_run):
+    """Pre-pass: for non-senior HR hires where col O has a CEO name and col T is
+    empty, write the CEO name directly to col T — no Apify search needed."""
+    updates = []
+    for i, row in enumerate(data_rows):
+        if cell(row, COL_DM_NAME):
+            continue
+        ceo_name = cell(row, COL_CEO_NAME)
+        job_title = cell(row, COL_JOB_TITLE)
+        if not ceo_name or is_senior_hr(job_title):
+            continue
+        sheet_row = i + 2
+        updates.append({
+            "sheet_row": sheet_row,
+            "ceo_name": ceo_name,
+            "company": cell(row, COL_COMPANY_NAME),
+            "job_title": job_title,
+        })
+
+    print(f"\nPre-pass (col O CEO name): {len(updates)} rows to fill directly")
+    for u in updates[:10]:
+        print(f"  row {u['sheet_row']}: {u['company']!r}  CEO={u['ceo_name']!r}  job={u['job_title']!r}")
+    if len(updates) > 10:
+        print(f"  ... and {len(updates) - 10} more")
+
+    if not updates or dry_run:
+        return
+
+    write_data = [
+        {"range": f"'{tab_name}'!{col_letter(COL_DM_NAME)}{u['sheet_row']}",
+         "values": [[u["ceo_name"]]]}
+        for u in updates
+    ]
+    CHUNK = 200
+    for i in range(0, len(write_data), CHUNK):
+        service.spreadsheets().values().batchUpdate(
+            spreadsheetId=sheet_id,
+            body={"valueInputOption": "RAW", "data": write_data[i:i + CHUNK]},
+        ).execute()
+    print(f"  Wrote {len(updates)} CEO names → col T")
+
+
 def collect_leads(rows, target_fn, limit):
     leads = []
     target_map = {}
@@ -639,6 +674,14 @@ def main():
         print("No data rows.")
         return
     data_rows = all_rows[1:]
+
+    prefill_ceo_from_col_o(service, sheet_id, tab_name, data_rows, dry_run=args.dry_run)
+
+    if not args.dry_run:
+        result = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id, range=f"'{tab_name}'!A:AA"
+        ).execute()
+        data_rows = result.get("values", [])[1:]
 
     f1, nf1 = run_pass(
         service, sheet_id, tab_name, data_rows,

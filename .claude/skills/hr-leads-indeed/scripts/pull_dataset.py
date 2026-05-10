@@ -71,7 +71,36 @@ HEADERS = [
     "Last Name",           # Y
     "Email Body",          # Z
     "Added to Instantly",  # AA
+    # Job seniority bucket — derived at ingest from Job Title
+    "Seniority",           # AB
+    # Indeed listing URL — derived: https://www.indeed.com/viewjob?jk={Job_Id}
+    "Indeed URL",          # AC
 ]
+
+
+_SENIOR_TITLE_PATTERNS = (
+    "chro", "cpo", "chief people", "chief human resources", "chief talent",
+    "vp ", "vp,", "vice president", "svp ", "svp,", "evp ", "evp,",
+    "director", "head of", "head,", "head ,",
+)
+_MID_TITLE_PATTERNS = ("manager", " lead", "senior ", "principal ")
+
+
+def classify_seniority(job_title):
+    """Bucket a Job Title into Senior / Mid / Junior using simple keyword rules.
+
+    Senior:  CHRO/CPO/Chief, VP/SVP/EVP, Director, Head of
+    Mid:     Manager, Lead, Senior <X>, Principal
+    Junior:  everything else (Generalist, Specialist, Coordinator, Recruiter, ...)
+    """
+    t = (job_title or "").lower().strip()
+    if not t:
+        return ""
+    if any(p in t for p in _SENIOR_TITLE_PATTERNS):
+        return "Senior"
+    if any(p in t for p in _MID_TITLE_PATTERNS):
+        return "Mid"
+    return "Junior"
 
 
 def get_sheet_id_from_url(url):
@@ -235,6 +264,10 @@ def map_to_row(item):
         loc.get("admin1Code", ""),
         # Outreach (T-AA) — blank
         "", "", "", "", "", "", "", "",
+        # Seniority (AB) — derived
+        classify_seniority(item.get("title", "")),
+        # Indeed URL (AC) — derived from Job_Id
+        f"https://www.indeed.com/viewjob?jk={item.get('key', '')}" if item.get("key") else "",
     ]
 
 

@@ -151,20 +151,24 @@ def extract_size_from_results(organic, company_name):
 
 
 def apify_google_search(queries):
-    """Run batched Google search. Returns {query: [organic_results]}."""
-    resp = requests.post(
-        f"{APIFY_BASE}/acts/{APIFY_ACTOR}/run-sync-get-dataset-items",
-        params={"token": APIFY_TOKEN},
-        json={
-            "queries": "\n".join(queries),
-            "resultsPerPage": 5,
-            "maxPagesPerQuery": 1,
-            "languageCode": "en",
-            "countryCode": "us",
-            "includeUnfilteredResults": False,
-        },
-        timeout=300,
-    )
+    """Run batched Google search. Returns {query: [organic_results]}. Swallows transient errors."""
+    try:
+        resp = requests.post(
+            f"{APIFY_BASE}/acts/{APIFY_ACTOR}/run-sync-get-dataset-items",
+            params={"token": APIFY_TOKEN},
+            json={
+                "queries": "\n".join(queries),
+                "resultsPerPage": 5,
+                "maxPagesPerQuery": 1,
+                "languageCode": "en",
+                "countryCode": "us",
+                "includeUnfilteredResults": False,
+            },
+            timeout=300,
+        )
+    except requests.RequestException as e:
+        print(f"  [!] Apify request error: {type(e).__name__}: {e}")
+        return {}
     if resp.status_code not in (200, 201):
         print(f"  [!] Apify HTTP {resp.status_code}: {resp.text[:200]}")
         return {}

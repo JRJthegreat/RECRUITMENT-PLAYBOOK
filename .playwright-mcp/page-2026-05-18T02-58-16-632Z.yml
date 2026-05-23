@@ -1,0 +1,1220 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "Skip to content" [ref=e3] [cursor=pointer]:
+      - /url: "#main"
+    - generic [ref=e5]:
+      - link "Apify" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img "Apify logo" [ref=e7]
+      - navigation [ref=e8]:
+        - list [ref=e9]:
+          - listitem [ref=e10]:
+            - button "Product" [ref=e12] [cursor=pointer]:
+              - paragraph [ref=e13]: Product
+              - img [ref=e14]
+            - menu:
+              - generic:
+                - menuitem "Promotion image background Start here! Get data with ready-made web scrapers for popular websites Browse 30,711 Actors":
+                  - img "Promotion image background"
+                  - generic:
+                    - paragraph: Start here!
+                    - paragraph: Get data with ready-made web scrapers for popular websites
+                    - paragraph:
+                      - text: Browse 30,711 Actors
+                      - img
+                - menuitem "Apify platform Apify Store Actors Integrations MCP":
+                  - generic:
+                    - paragraph: Apify platform
+                    - list:
+                      - listitem:
+                        - link "Apify Store":
+                          - /url: /store
+                          - generic:
+                            - generic:
+                              - paragraph: Apify Store
+                            - paragraph: Pre-built web scraping tools
+                      - listitem:
+                        - link "Actors":
+                          - /url: /actors
+                          - generic:
+                            - generic:
+                              - paragraph: Actors
+                            - paragraph: Build and run serverless programs
+                      - listitem:
+                        - link "Integrations":
+                          - /url: /integrations
+                          - generic:
+                            - generic:
+                              - paragraph: Integrations
+                            - paragraph: Connect with apps and services
+                      - listitem:
+                        - link "MCP":
+                          - /url: https://mcp.apify.com/
+                          - generic:
+                            - generic:
+                              - paragraph: MCP
+                            - paragraph: Give your AI access to Actors
+                - menuitem "Anti-blocking Anti-blocking Proxy Open source Crawlee":
+                  - generic:
+                    - paragraph: Anti-blocking
+                    - list:
+                      - listitem:
+                        - link "Anti-blocking":
+                          - /url: /anti-blocking
+                          - generic:
+                            - generic:
+                              - paragraph: Anti-blocking
+                            - paragraph: Scrape without getting blocked
+                      - listitem:
+                        - link "Proxy":
+                          - /url: /proxy
+                          - generic:
+                            - generic:
+                              - paragraph: Proxy
+                            - paragraph: Rotate scraper IP addresses
+                  - generic:
+                    - paragraph: Open source
+                    - list:
+                      - listitem:
+                        - link "Crawlee":
+                          - /url: https://crawlee.dev/?__hstc=160404322.300a0246ada67f9dcd403abde73fb0e6.1779072955623.1779072955623.1779072955623.1&__hssc=160404322.7.1779072955623&__hsfp=d0e9c1d52ecd6c4d04b31eba82565a4b
+                          - generic:
+                            - generic:
+                              - paragraph: Crawlee
+                              - img
+                            - paragraph: Web scraping and crawling library
+          - listitem [ref=e16]:
+            - button "Solutions" [ref=e18] [cursor=pointer]:
+              - paragraph [ref=e19]: Solutions
+              - img [ref=e20]
+            - menu:
+              - generic:
+                - menuitem "Promotion image background MCP server configuration Configure your Apify MCP server with Actors and tools for seamless integration with MCP clients. Start building":
+                  - img "Promotion image background"
+                  - generic:
+                    - paragraph: MCP server configuration
+                    - paragraph: Configure your Apify MCP server with Actors and tools for seamless integration with MCP clients.
+                    - paragraph:
+                      - text: Start building
+                      - img
+                - menuitem "Web data for Enterprise Startups Universities Nonprofits":
+                  - generic:
+                    - paragraph: Web data for
+                    - list:
+                      - listitem:
+                        - link "Enterprise":
+                          - /url: /enterprise
+                          - generic:
+                            - generic:
+                              - paragraph: Enterprise
+                      - listitem:
+                        - link "Startups":
+                          - /url: /resources/startups
+                          - generic:
+                            - generic:
+                              - paragraph: Startups
+                      - listitem:
+                        - link "Universities":
+                          - /url: /resources/universities
+                          - generic:
+                            - generic:
+                              - paragraph: Universities
+                      - listitem:
+                        - link "Nonprofits":
+                          - /url: /resources/nonprofits
+                          - generic:
+                            - generic:
+                              - paragraph: Nonprofits
+                - menuitem "Use cases Data for generative AI Data for AI agents Lead generation Market research View more →":
+                  - generic:
+                    - paragraph: Use cases
+                    - list:
+                      - listitem:
+                        - link "Data for generative AI":
+                          - /url: /use-cases/data-for-generative-ai
+                          - generic:
+                            - generic:
+                              - paragraph: Data for generative AI
+                      - listitem:
+                        - link "Data for AI agents":
+                          - /url: /use-cases/data-for-ai-agents
+                          - generic:
+                            - generic:
+                              - paragraph: Data for AI agents
+                      - listitem:
+                        - link "Lead generation":
+                          - /url: /use-cases/lead-generation
+                          - generic:
+                            - generic:
+                              - paragraph: Lead generation
+                      - listitem:
+                        - link "Market research":
+                          - /url: /use-cases/market-research
+                          - generic:
+                            - generic:
+                              - paragraph: Market research
+                      - listitem:
+                        - link "View more →":
+                          - /url: /use-cases
+                          - generic:
+                            - generic:
+                              - paragraph: View more →
+                - menuitem "Consulting Apify Professional Services Apify Partners":
+                  - generic:
+                    - paragraph: Consulting
+                    - list:
+                      - listitem:
+                        - link "Apify Professional Services":
+                          - /url: /professional-services
+                          - generic:
+                            - generic:
+                              - paragraph: Apify Professional Services
+                      - listitem:
+                        - link "Apify Partners":
+                          - /url: /partners
+                          - generic:
+                            - generic:
+                              - paragraph: Apify Partners
+          - listitem [ref=e22]:
+            - button "Developers" [ref=e24] [cursor=pointer]:
+              - paragraph [ref=e25]: Developers
+              - img [ref=e26]
+            - menu:
+              - generic:
+                - menuitem "Documentation Get started Code templates Web scraping academy Monetize your code":
+                  - generic:
+                    - list:
+                      - listitem:
+                        - link "Documentation":
+                          - /url: https://docs.apify.com/
+                          - generic:
+                            - generic:
+                              - paragraph: Documentation
+                            - paragraph: Full reference for the Apify platform
+                  - generic:
+                    - paragraph: Get started
+                    - list:
+                      - listitem:
+                        - link "Code templates":
+                          - /url: /templates
+                          - generic:
+                            - generic:
+                              - paragraph: Code templates
+                            - paragraph: Python, JavaScript, and TypeScript
+                      - listitem:
+                        - link "Web scraping academy":
+                          - /url: https://docs.apify.com/academy
+                          - generic:
+                            - generic:
+                              - paragraph: Web scraping academy
+                            - paragraph: Courses for beginners and experts
+                      - listitem:
+                        - link "Monetize your code":
+                          - /url: /partners/actor-developers
+                          - generic:
+                            - generic:
+                              - paragraph: Monetize your code
+                            - paragraph: Publish your scrapers and get paid
+                - menuitem "Learn API reference CLI SDK MCP Crawlee":
+                  - generic:
+                    - paragraph: Learn
+                    - list:
+                      - listitem:
+                        - link "API reference":
+                          - /url: https://docs.apify.com/api
+                          - generic:
+                            - generic:
+                              - paragraph: API reference
+                      - listitem:
+                        - link "CLI":
+                          - /url: https://docs.apify.com/cli/
+                          - generic:
+                            - generic:
+                              - paragraph: CLI
+                      - listitem:
+                        - link "SDK":
+                          - /url: https://docs.apify.com/sdk
+                          - generic:
+                            - generic:
+                              - paragraph: SDK
+                      - listitem:
+                        - link "MCP":
+                          - /url: https://docs.apify.com/platform/integrations/mcp
+                          - generic:
+                            - generic:
+                              - paragraph: MCP
+                      - listitem:
+                        - link "Crawlee":
+                          - /url: https://crawlee.dev/?__hstc=160404322.300a0246ada67f9dcd403abde73fb0e6.1779072955623.1779072955623.1779072955623.1&__hssc=160404322.7.1779072955623&__hsfp=d0e9c1d52ecd6c4d04b31eba82565a4b
+                          - generic:
+                            - generic:
+                              - paragraph: Crawlee
+                              - img
+                - menuitem "Promotion image background Earn from your code $1M paid out last month. Many developers earn over $3k. Start earning now":
+                  - img "Promotion image background"
+                  - generic:
+                    - paragraph: Earn from your code
+                    - paragraph: $1M paid out last month. Many developers earn over $3k.
+                    - paragraph:
+                      - text: Start earning now
+                      - img
+          - listitem [ref=e28]:
+            - button "Resources" [ref=e30] [cursor=pointer]:
+              - paragraph [ref=e31]: Resources
+              - img [ref=e32]
+            - menu:
+              - generic:
+                - menuitem "Help and support Actor ideas Changelog Customer stories":
+                  - generic:
+                    - paragraph
+                    - list:
+                      - listitem:
+                        - link "Help and support":
+                          - /url: https://help.apify.com/en/
+                          - generic:
+                            - generic:
+                              - paragraph: Help and support
+                            - paragraph: Advice and answers about Apify
+                      - listitem:
+                        - link "Actor ideas":
+                          - /url: /ideas
+                          - generic:
+                            - generic:
+                              - paragraph: Actor ideas
+                            - paragraph: Get inspired to build Actors
+                      - listitem:
+                        - link "Changelog":
+                          - /url: /change-log
+                          - generic:
+                            - generic:
+                              - paragraph: Changelog
+                            - paragraph: See what’s new on Apify
+                      - listitem:
+                        - link "Customer stories":
+                          - /url: /success-stories
+                          - generic:
+                            - generic:
+                              - paragraph: Customer stories
+                            - paragraph: Find out how others use Apify
+                - menuitem "Company About Apify Contact us Blog Live events Partners Jobs":
+                  - generic:
+                    - paragraph: Company
+                    - list:
+                      - listitem:
+                        - link "About Apify":
+                          - /url: /about
+                          - generic:
+                            - generic:
+                              - paragraph: About Apify
+                      - listitem:
+                        - link "Contact us":
+                          - /url: /contact
+                          - generic:
+                            - generic:
+                              - paragraph: Contact us
+                      - listitem:
+                        - link "Blog":
+                          - /url: https://blog.apify.com/
+                          - generic:
+                            - generic:
+                              - paragraph: Blog
+                      - listitem:
+                        - link "Live events":
+                          - /url: https://lu.ma/apify
+                          - generic:
+                            - generic:
+                              - paragraph: Live events
+                      - listitem:
+                        - link "Partners":
+                          - /url: /partners
+                          - generic:
+                            - generic:
+                              - paragraph: Partners
+                      - listitem:
+                        - link "Jobs":
+                          - /url: /jobs
+                          - generic:
+                            - generic:
+                              - paragraph: Jobs
+                              - generic:
+                                - paragraph: We're hiring!
+                - menuitem "Promotion image background Join our Discord Talk to scraping experts":
+                  - img "Promotion image background"
+                  - generic:
+                    - paragraph: Join our Discord
+                    - paragraph:
+                      - text: Talk to scraping experts
+                      - img
+          - listitem [ref=e34]:
+            - link "Pricing" [ref=e36] [cursor=pointer]:
+              - /url: /pricing
+              - paragraph [ref=e37]: Pricing
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - link "Get custom solution" [ref=e40] [cursor=pointer]:
+            - /url: /contact-sales
+            - paragraph [ref=e41]: Contact sales
+          - link "Log in" [ref=e42] [cursor=pointer]:
+            - /url: https://console.apify.com/sign-in
+            - paragraph [ref=e43]: Log in
+        - link "Get started" [ref=e44] [cursor=pointer]:
+          - /url: https://console.apify.com/sign-up
+          - paragraph [ref=e45]: Get started
+  - main [ref=e46]:
+    - generic [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e51]:
+          - heading "Apify Store" [level=1] [ref=e52]
+          - generic [ref=e53]:
+            - combobox [ref=e54]:
+              - textbox "Search for Actors" [ref=e55]
+              - img [ref=e56] [cursor=pointer]
+            - button "Search" [ref=e58] [cursor=pointer]
+          - generic [ref=e59]:
+            - link "Social media" [ref=e60] [cursor=pointer]:
+              - /url: /store/categories/social-media-scrapers
+              - button "Social media" [ref=e61]:
+                - paragraph [ref=e62]: Social media
+            - link "AI" [ref=e63] [cursor=pointer]:
+              - /url: /store/categories/ai
+              - button "AI" [ref=e64]:
+                - paragraph [ref=e65]: AI
+            - link "Agents" [ref=e66] [cursor=pointer]:
+              - /url: /store/categories/agents
+              - button "Agents" [ref=e67]:
+                - paragraph [ref=e68]: Agents
+            - link "Lead generation" [ref=e69] [cursor=pointer]:
+              - /url: /store/categories/lead-generation
+              - button "Lead generation" [ref=e70]:
+                - paragraph [ref=e71]: Lead generation
+            - button "..." [ref=e72] [cursor=pointer]:
+              - paragraph [ref=e73]: ...
+        - img "apify-logo-glyph" [ref=e75]
+      - generic [ref=e76]:
+        - generic [ref=e77]:
+          - generic [ref=e78]:
+            - heading "All Actors" [level=4] [ref=e80]
+            - link "View all" [ref=e81] [cursor=pointer]:
+              - /url: /store/categories
+              - generic [ref=e82]: View all
+              - img [ref=e83]
+          - generic [ref=e85]:
+            - link "Google Maps Scraper avatar Google Maps Scraper compass/crawler-google-places Extract data from thousands of Google Maps locations and businesses, including reviews, reviewer details, images, contact info, including full name, email, and job title, opening hours, prices & more. Export data, run via API, schedule and monitor runs, or integrate with other tools. User avatar Compass 409K 4.7 (1,332)" [ref=e86] [cursor=pointer]:
+              - /url: /compass/crawler-google-places
+              - generic [ref=e87]:
+                - generic [ref=e88]:
+                  - img "Google Maps Scraper avatar" [ref=e90]
+                  - generic [ref=e91]:
+                    - heading "Google Maps Scraper" [level=3] [ref=e93]
+                    - paragraph [ref=e94]: compass/crawler-google-places
+                - paragraph [ref=e95]: Extract data from thousands of Google Maps locations and businesses, including reviews, reviewer details, images, contact info, including full name, email, and job title, opening hours, prices & more. Export data, run via API, schedule and monitor runs, or integrate with other tools.
+              - generic [ref=e96]:
+                - generic [ref=e97]:
+                  - img "User avatar" [ref=e98]
+                  - paragraph [ref=e99]: Compass
+                - generic [ref=e100]:
+                  - generic [ref=e101]:
+                    - img [ref=e102]
+                    - paragraph [ref=e104]: 409K
+                  - generic [ref=e106]:
+                    - img [ref=e107]
+                    - paragraph [ref=e109]: "4.7"
+                    - paragraph [ref=e110]: (1,332)
+            - link "TikTok Scraper avatar TikTok Scraper clockworks/tiktok-scraper Extract data from TikTok videos, hashtags, and users. Use URLs or search queries to scrape TikTok profiles, hashtags, posts, URLs, shares, followers, hearts, names, video, and music-related data. Export scraped data, run the scraper via API, schedule and monitor runs or integrate with other tools. User avatar Clockworks 178K 4.7 (283)" [ref=e111] [cursor=pointer]:
+              - /url: /clockworks/tiktok-scraper
+              - generic [ref=e112]:
+                - generic [ref=e113]:
+                  - img "TikTok Scraper avatar" [ref=e115]
+                  - generic [ref=e116]:
+                    - heading "TikTok Scraper" [level=3] [ref=e118]
+                    - paragraph [ref=e119]: clockworks/tiktok-scraper
+                - paragraph [ref=e120]: Extract data from TikTok videos, hashtags, and users. Use URLs or search queries to scrape TikTok profiles, hashtags, posts, URLs, shares, followers, hearts, names, video, and music-related data. Export scraped data, run the scraper via API, schedule and monitor runs or integrate with other tools.
+              - generic [ref=e121]:
+                - generic [ref=e122]:
+                  - img "User avatar" [ref=e123]
+                  - paragraph [ref=e124]: Clockworks
+                - generic [ref=e125]:
+                  - generic [ref=e126]:
+                    - img [ref=e127]
+                    - paragraph [ref=e129]: 178K
+                  - generic [ref=e131]:
+                    - img [ref=e132]
+                    - paragraph [ref=e134]: "4.7"
+                    - paragraph [ref=e135]: (283)
+            - link "Website Content Crawler avatar Website Content Crawler apify/website-content-crawler Crawl websites and extract text content to feed AI models, LLM applications, vector databases, or RAG pipelines. The Actor supports rich formatting using Markdown, cleans the HTML, downloads files, and integrates well with 🦜🔗 LangChain, LlamaIndex, and the wider LLM ecosystem. User avatar Apify 125K 4.7 (196)" [ref=e136] [cursor=pointer]:
+              - /url: /apify/website-content-crawler
+              - generic [ref=e137]:
+                - generic [ref=e138]:
+                  - img "Website Content Crawler avatar" [ref=e140]
+                  - generic [ref=e141]:
+                    - heading "Website Content Crawler" [level=3] [ref=e143]
+                    - paragraph [ref=e144]: apify/website-content-crawler
+                - paragraph [ref=e145]: Crawl websites and extract text content to feed AI models, LLM applications, vector databases, or RAG pipelines. The Actor supports rich formatting using Markdown, cleans the HTML, downloads files, and integrates well with 🦜🔗 LangChain, LlamaIndex, and the wider LLM ecosystem.
+              - generic [ref=e146]:
+                - generic [ref=e147]:
+                  - img "User avatar" [ref=e148]
+                  - paragraph [ref=e149]: Apify
+                - generic [ref=e150]:
+                  - generic [ref=e151]:
+                    - img [ref=e152]
+                    - paragraph [ref=e154]: 125K
+                  - generic [ref=e156]:
+                    - img [ref=e157]
+                    - paragraph [ref=e159]: "4.7"
+                    - paragraph [ref=e160]: (196)
+            - link "Instagram Scraper avatar Instagram Scraper apify/instagram-scraper Scrape and download Instagram posts, profiles, places, hashtags, photos, and comments. Get data from Instagram using one or more Instagram URLs or search queries. Export scraped data, run the scraper via API, schedule and monitor runs or integrate with other tools. User avatar Apify 264K 4.7 (409)" [ref=e161] [cursor=pointer]:
+              - /url: /apify/instagram-scraper
+              - generic [ref=e162]:
+                - generic [ref=e163]:
+                  - img "Instagram Scraper avatar" [ref=e165]
+                  - generic [ref=e166]:
+                    - heading "Instagram Scraper" [level=3] [ref=e168]
+                    - paragraph [ref=e169]: apify/instagram-scraper
+                - paragraph [ref=e170]: Scrape and download Instagram posts, profiles, places, hashtags, photos, and comments. Get data from Instagram using one or more Instagram URLs or search queries. Export scraped data, run the scraper via API, schedule and monitor runs or integrate with other tools.
+              - generic [ref=e171]:
+                - generic [ref=e172]:
+                  - img "User avatar" [ref=e173]
+                  - paragraph [ref=e174]: Apify
+                - generic [ref=e175]:
+                  - generic [ref=e176]:
+                    - img [ref=e177]
+                    - paragraph [ref=e179]: 264K
+                  - generic [ref=e181]:
+                    - img [ref=e182]
+                    - paragraph [ref=e184]: "4.7"
+                    - paragraph [ref=e185]: (409)
+            - link "Google Search Results Scraper avatar Google Search Results Scraper apify/google-search-scraper Scrape Google Search Engine Results Pages (SERPs). Select the country or language and extract organic and paid results, AI Mode, AI overviews, ads, queries, People Also Ask, prices, reviews, like a Google SERP API. Export data, run the scraper via API, schedule runs, or integrate with other tools. User avatar Apify 125K 4.8 (132)" [ref=e186] [cursor=pointer]:
+              - /url: /apify/google-search-scraper
+              - generic [ref=e187]:
+                - generic [ref=e188]:
+                  - img "Google Search Results Scraper avatar" [ref=e190]
+                  - generic [ref=e191]:
+                    - heading "Google Search Results Scraper" [level=3] [ref=e193]
+                    - paragraph [ref=e194]: apify/google-search-scraper
+                - paragraph [ref=e195]: Scrape Google Search Engine Results Pages (SERPs). Select the country or language and extract organic and paid results, AI Mode, AI overviews, ads, queries, People Also Ask, prices, reviews, like a Google SERP API. Export data, run the scraper via API, schedule runs, or integrate with other tools.
+              - generic [ref=e196]:
+                - generic [ref=e197]:
+                  - img "User avatar" [ref=e198]
+                  - paragraph [ref=e199]: Apify
+                - generic [ref=e200]:
+                  - generic [ref=e201]:
+                    - img [ref=e202]
+                    - paragraph [ref=e204]: 125K
+                  - generic [ref=e206]:
+                    - img [ref=e207]
+                    - paragraph [ref=e209]: "4.8"
+                    - paragraph [ref=e210]: (132)
+            - link "E-commerce Scraping Tool avatar E-commerce Scraping Tool apify/e-commerce-scraping-tool Scrape data from e-commerce websites with E-commerce Scraping Tool. Scrape almost any retail site in minutes, extract e-commerce data and use it to monitor price details over time or compare different e-commerce sites’ offerings. User avatar Apify 10K 4.5 (42)" [ref=e211] [cursor=pointer]:
+              - /url: /apify/e-commerce-scraping-tool
+              - generic [ref=e212]:
+                - generic [ref=e213]:
+                  - img "E-commerce Scraping Tool avatar" [ref=e215]
+                  - generic [ref=e216]:
+                    - heading "E-commerce Scraping Tool" [level=3] [ref=e218]
+                    - paragraph [ref=e219]: apify/e-commerce-scraping-tool
+                - paragraph [ref=e220]: Scrape data from e-commerce websites with E-commerce Scraping Tool. Scrape almost any retail site in minutes, extract e-commerce data and use it to monitor price details over time or compare different e-commerce sites’ offerings.
+              - generic [ref=e221]:
+                - generic [ref=e222]:
+                  - img "User avatar" [ref=e223]
+                  - paragraph [ref=e224]: Apify
+                - generic [ref=e225]:
+                  - generic [ref=e226]:
+                    - img [ref=e227]
+                    - paragraph [ref=e229]: 10K
+                  - generic [ref=e231]:
+                    - img [ref=e232]
+                    - paragraph [ref=e234]: "4.5"
+                    - paragraph [ref=e235]: (42)
+        - generic [ref=e236]:
+          - generic [ref=e237]:
+            - generic [ref=e238]:
+              - heading "Apify for marketers" [level=3] [ref=e239]
+              - paragraph [ref=e240]: "Our best picks for all things marketing: SEO, content analysis, competitor analysis, and so much more."
+            - link "Browse Actors" [ref=e242] [cursor=pointer]:
+              - /url: /store/collections/marketing-tools
+              - paragraph [ref=e243]: Browse Actors
+          - img "Marketing tools illustration" [ref=e245]
+        - generic [ref=e246]:
+          - generic [ref=e247]:
+            - heading "Lead generation" [level=4] [ref=e249]
+            - link "View all" [ref=e250] [cursor=pointer]:
+              - /url: /store/categories/lead-generation
+              - generic [ref=e251]: View all
+              - img [ref=e252]
+          - generic [ref=e254]:
+            - link "🏯 Tweet Scraper V2 - X / Twitter Scraper avatar 🏯 Tweet Scraper V2 - X / Twitter Scraper apidojo/tweet-scraper ⚡️ Lightning-fast search, URL, list, and profile scraping, with customizable filters. At $0.40 per 1000 tweets, and 30-80 tweets per second, it is ideal for researchers, entrepreneurs, and businesses! Get comprehensive insights from Twitter (X) now! User avatar API Dojo 55K 3.9 (167)" [ref=e255] [cursor=pointer]:
+              - /url: /apidojo/tweet-scraper
+              - generic [ref=e256]:
+                - generic [ref=e257]:
+                  - img "🏯 Tweet Scraper V2 - X / Twitter Scraper avatar" [ref=e259]
+                  - generic [ref=e260]:
+                    - heading "🏯 Tweet Scraper V2 - X / Twitter Scraper" [level=3] [ref=e262]
+                    - paragraph [ref=e263]: apidojo/tweet-scraper
+                - paragraph [ref=e264]: ⚡️ Lightning-fast search, URL, list, and profile scraping, with customizable filters. At $0.40 per 1000 tweets, and 30-80 tweets per second, it is ideal for researchers, entrepreneurs, and businesses! Get comprehensive insights from Twitter (X) now!
+              - generic [ref=e265]:
+                - generic [ref=e266]:
+                  - img "User avatar" [ref=e267]
+                  - paragraph [ref=e268]: API Dojo
+                - generic [ref=e269]:
+                  - generic [ref=e270]:
+                    - img [ref=e271]
+                    - paragraph [ref=e273]: 55K
+                  - generic [ref=e275]:
+                    - img [ref=e276]
+                    - paragraph [ref=e278]: "3.9"
+                    - paragraph [ref=e279]: (167)
+            - link "Facebook Ad Library Scraper avatar Facebook Ad Library Scraper curious_coder/facebook-ads-library-scraper Scrape facebook ads from ad library search results and ads run by facebook pages - Fast and lightweight. $0.75 per 1000 results User avatar Curious Coder 26K 4.6 (86)" [ref=e280] [cursor=pointer]:
+              - /url: /curious_coder/facebook-ads-library-scraper
+              - generic [ref=e281]:
+                - generic [ref=e282]:
+                  - img "Facebook Ad Library Scraper avatar" [ref=e284]
+                  - generic [ref=e285]:
+                    - heading "Facebook Ad Library Scraper" [level=3] [ref=e287]
+                    - paragraph [ref=e288]: curious_coder/facebook-ads-library-scraper
+                - paragraph [ref=e289]: Scrape facebook ads from ad library search results and ads run by facebook pages - Fast and lightweight. $0.75 per 1000 results
+              - generic [ref=e290]:
+                - generic [ref=e291]:
+                  - img "User avatar" [ref=e292]
+                  - paragraph [ref=e293]: Curious Coder
+                - generic [ref=e294]:
+                  - generic [ref=e295]:
+                    - img [ref=e296]
+                    - paragraph [ref=e298]: 26K
+                  - generic [ref=e300]:
+                    - img [ref=e301]
+                    - paragraph [ref=e303]: "4.6"
+                    - paragraph [ref=e304]: (86)
+            - link "✨Leads Finder - $1.5/1k leads with Emails [Apollo Alternative] avatar ✨Leads Finder - $1.5/1k leads with Emails [Apollo Alternative] code_crafter/leads-finder ✅ Affordable alternative to ZoomInfo, Lusha & Apollo. ✅ Get Business email, 📞Mobile Number, Personal email, LinkedIn profiles, company details etc.. User avatar Code Pioneer 35K 4.0 (477)" [ref=e305] [cursor=pointer]:
+              - /url: /code_crafter/leads-finder
+              - generic [ref=e306]:
+                - generic [ref=e307]:
+                  - img "✨Leads Finder - $1.5/1k leads with Emails [Apollo Alternative] avatar" [ref=e309]
+                  - generic [ref=e310]:
+                    - heading "✨Leads Finder - $1.5/1k leads with Emails [Apollo Alternative]" [level=3] [ref=e312]
+                    - paragraph [ref=e313]: code_crafter/leads-finder
+                - paragraph [ref=e314]: ✅ Affordable alternative to ZoomInfo, Lusha & Apollo. ✅ Get Business email, 📞Mobile Number, Personal email, LinkedIn profiles, company details etc..
+              - generic [ref=e315]:
+                - generic [ref=e316]:
+                  - img "User avatar" [ref=e317]
+                  - paragraph [ref=e318]: Code Pioneer
+                - generic [ref=e319]:
+                  - generic [ref=e320]:
+                    - img [ref=e321]
+                    - paragraph [ref=e323]: 35K
+                  - generic [ref=e325]:
+                    - img [ref=e326]
+                    - paragraph [ref=e328]: "4.0"
+                    - paragraph [ref=e329]: (477)
+            - 'link "✨Mass Linkedin Profile Scraper with Email 📧 (No Cookies) avatar ✨Mass Linkedin Profile Scraper with Email 📧 (No Cookies) dev_fusion/Linkedin-Profile-Scraper 🚀 Extract full LinkedIn profile insights: verified email 📧, phone number 📞, work history, education, and more... User avatar Dev Fusion 58K 3.9 (150)" [ref=e330] [cursor=pointer]':
+              - /url: /dev_fusion/linkedin-profile-scraper
+              - generic [ref=e331]:
+                - generic [ref=e332]:
+                  - img "✨Mass Linkedin Profile Scraper with Email 📧 (No Cookies) avatar" [ref=e334]
+                  - generic [ref=e335]:
+                    - heading "✨Mass Linkedin Profile Scraper with Email 📧 (No Cookies)" [level=3] [ref=e337]
+                    - paragraph [ref=e338]: dev_fusion/Linkedin-Profile-Scraper
+                - paragraph [ref=e339]: "🚀 Extract full LinkedIn profile insights: verified email 📧, phone number 📞, work history, education, and more..."
+              - generic [ref=e340]:
+                - generic [ref=e341]:
+                  - img "User avatar" [ref=e342]
+                  - paragraph [ref=e343]: Dev Fusion
+                - generic [ref=e344]:
+                  - generic [ref=e345]:
+                    - img [ref=e346]
+                    - paragraph [ref=e348]: 58K
+                  - generic [ref=e350]:
+                    - img [ref=e351]
+                    - paragraph [ref=e353]: "3.9"
+                    - paragraph [ref=e354]: (150)
+            - link "LinkedIn Company Employees Scraper ✅ No Cookies 📧 avatar LinkedIn Company Employees Scraper ✅ No Cookies 📧 harvestapi/linkedin-company-employees Extract all LinkedIn Company employees with filters and detailed profile information, including complete work experience, and more. No cookies or account required. This actor can try to find contact emails. User avatar HarvestAPI 11K 4.3 (25)" [ref=e355] [cursor=pointer]:
+              - /url: /harvestapi/linkedin-company-employees
+              - generic [ref=e356]:
+                - generic [ref=e357]:
+                  - img "LinkedIn Company Employees Scraper ✅ No Cookies 📧 avatar" [ref=e359]
+                  - generic [ref=e360]:
+                    - heading "LinkedIn Company Employees Scraper ✅ No Cookies 📧" [level=3] [ref=e362]
+                    - paragraph [ref=e363]: harvestapi/linkedin-company-employees
+                - paragraph [ref=e364]: Extract all LinkedIn Company employees with filters and detailed profile information, including complete work experience, and more. No cookies or account required. This actor can try to find contact emails.
+              - generic [ref=e365]:
+                - generic [ref=e366]:
+                  - img "User avatar" [ref=e367]
+                  - paragraph [ref=e368]: HarvestAPI
+                - generic [ref=e369]:
+                  - generic [ref=e370]:
+                    - img [ref=e371]
+                    - paragraph [ref=e373]: 11K
+                  - generic [ref=e375]:
+                    - img [ref=e376]
+                    - paragraph [ref=e378]: "4.3"
+                    - paragraph [ref=e379]: (25)
+            - link "Instagram Profile Scraper avatar Instagram Profile Scraper apify/instagram-profile-scraper Scrape all Instagram profile info. Just add Instagram usernames, IDs or URLs and extract name, join date, number of followers, location, bio, website, related profiles, video&post count, latest posts. Export scraped data, schedule scraper via API, and integrate with other tools or AI workflows. User avatar Apify 130K 4.8 (124)" [ref=e380] [cursor=pointer]:
+              - /url: /apify/instagram-profile-scraper
+              - generic [ref=e381]:
+                - generic [ref=e382]:
+                  - img "Instagram Profile Scraper avatar" [ref=e384]
+                  - generic [ref=e385]:
+                    - heading "Instagram Profile Scraper" [level=3] [ref=e387]
+                    - paragraph [ref=e388]: apify/instagram-profile-scraper
+                - paragraph [ref=e389]: Scrape all Instagram profile info. Just add Instagram usernames, IDs or URLs and extract name, join date, number of followers, location, bio, website, related profiles, video&post count, latest posts. Export scraped data, schedule scraper via API, and integrate with other tools or AI workflows.
+              - generic [ref=e390]:
+                - generic [ref=e391]:
+                  - img "User avatar" [ref=e392]
+                  - paragraph [ref=e393]: Apify
+                - generic [ref=e394]:
+                  - generic [ref=e395]:
+                    - img [ref=e396]
+                    - paragraph [ref=e398]: 130K
+                  - generic [ref=e400]:
+                    - img [ref=e401]
+                    - paragraph [ref=e403]: "4.8"
+                    - paragraph [ref=e404]: (124)
+        - generic [ref=e405]:
+          - generic [ref=e406]:
+            - generic [ref=e407]:
+              - heading "E-commerce insights, ready in minutes" [level=3] [ref=e408]
+              - paragraph [ref=e409]: Scrape prices, reviews, product data, and seller info from any online store. Purpose-built scrapers for every e-commerce use case.
+            - link "Browse Actors" [ref=e411] [cursor=pointer]:
+              - /url: /store/collections/e-commerce-tools
+              - paragraph [ref=e412]: Browse Actors
+          - img "E-commerce tools illustration" [ref=e414]
+        - generic [ref=e415]:
+          - generic [ref=e416]:
+            - heading "Rising stars" [level=4] [ref=e418]
+            - link "View all" [ref=e419] [cursor=pointer]:
+              - /url: /store/collections/rising-star
+              - generic [ref=e420]: View all
+              - img [ref=e421]
+          - generic [ref=e423]:
+            - 'link "ImportYeti Scraper - US Import Records & Supplier Data avatar ImportYeti Scraper - US Import Records & Supplier Data zen-studio/importyeti-scraper Extract supplier profiles, shipment records, and trade data from ImportYeti. Search by company, product, or address. 60+ fields per result: HS codes, shipping lanes, carriers, bills of lading, trading partners, and contact info. No login required. User avatar Zen Studio 156" [ref=e424] [cursor=pointer]':
+              - /url: /zen-studio/importyeti-scraper
+              - generic [ref=e425]:
+                - generic [ref=e426]:
+                  - generic [ref=e427]:
+                    - img "ImportYeti Scraper - US Import Records & Supplier Data avatar" [ref=e428]
+                    - img [ref=e430]
+                  - generic [ref=e432]:
+                    - heading "ImportYeti Scraper - US Import Records & Supplier Data" [level=3] [ref=e434]
+                    - paragraph [ref=e435]: zen-studio/importyeti-scraper
+                - paragraph [ref=e436]: "Extract supplier profiles, shipment records, and trade data from ImportYeti. Search by company, product, or address. 60+ fields per result: HS codes, shipping lanes, carriers, bills of lading, trading partners, and contact info. No login required."
+              - generic [ref=e437]:
+                - generic [ref=e438]:
+                  - img "User avatar" [ref=e439]
+                  - paragraph [ref=e440]: Zen Studio
+                - generic [ref=e442]:
+                  - img [ref=e443]
+                  - paragraph [ref=e445]: "156"
+            - link "Google Maps Scraper | 💰$2.5 per 1,000 results avatar Google Maps Scraper | 💰$2.5 per 1,000 results solidcode/google-maps-scraper-2-5-per-1-000-results [💰 $2.5 / 1K] Scrape Google Maps search results at scale. Extract business names, addresses, phone numbers, websites, ratings, reviews count, opening hours, photos, popular times, and 30+ data points for any search query and location worldwide. User avatar SolidCode 160 4.7 (4)" [ref=e447] [cursor=pointer]:
+              - /url: /solidcode/google-maps-scraper-2-5-per-1-000-results
+              - generic [ref=e448]:
+                - generic [ref=e449]:
+                  - generic [ref=e450]:
+                    - img "Google Maps Scraper | 💰$2.5 per 1,000 results avatar" [ref=e451]
+                    - img [ref=e453]
+                  - generic [ref=e455]:
+                    - heading "Google Maps Scraper | 💰$2.5 per 1,000 results" [level=3] [ref=e457]
+                    - paragraph [ref=e458]: solidcode/google-maps-scraper-2-5-per-1-000-results
+                - paragraph [ref=e459]: "[💰 $2.5 / 1K] Scrape Google Maps search results at scale. Extract business names, addresses, phone numbers, websites, ratings, reviews count, opening hours, photos, popular times, and 30+ data points for any search query and location worldwide."
+              - generic [ref=e460]:
+                - generic [ref=e461]:
+                  - img "User avatar" [ref=e462]
+                  - paragraph [ref=e463]: SolidCode
+                - generic [ref=e464]:
+                  - generic [ref=e465]:
+                    - img [ref=e466]
+                    - paragraph [ref=e468]: "160"
+                  - generic [ref=e470]:
+                    - img [ref=e471]
+                    - paragraph [ref=e473]: "4.7"
+                    - paragraph [ref=e474]: (4)
+            - 'link "ThomasNet Suppliers Real-Time Scraper (2026) avatar ThomasNet Suppliers Real-Time Scraper (2026) zen-studio/thomasnet-suppliers-scraper Extract 70+ ThomasNet supplier fields: emails, phone numbers, company data, products, locations, certifications and more. Build supplier shortlists, generate B2B leads, or analyze industrial markets. No Login needed! Thousands of results in seconds. User avatar Zen Studio 259 3.3 (3)" [ref=e475] [cursor=pointer]':
+              - /url: /zen-studio/thomasnet-suppliers-scraper
+              - generic [ref=e476]:
+                - generic [ref=e477]:
+                  - generic [ref=e478]:
+                    - img "ThomasNet Suppliers Real-Time Scraper (2026) avatar" [ref=e479]
+                    - img [ref=e481]
+                  - generic [ref=e483]:
+                    - heading "ThomasNet Suppliers Real-Time Scraper (2026)" [level=3] [ref=e485]
+                    - paragraph [ref=e486]: zen-studio/thomasnet-suppliers-scraper
+                - paragraph [ref=e487]: "Extract 70+ ThomasNet supplier fields: emails, phone numbers, company data, products, locations, certifications and more. Build supplier shortlists, generate B2B leads, or analyze industrial markets. No Login needed! Thousands of results in seconds."
+              - generic [ref=e488]:
+                - generic [ref=e489]:
+                  - img "User avatar" [ref=e490]
+                  - paragraph [ref=e491]: Zen Studio
+                - generic [ref=e492]:
+                  - generic [ref=e493]:
+                    - img [ref=e494]
+                    - paragraph [ref=e496]: "259"
+                  - generic [ref=e498]:
+                    - img [ref=e499]
+                    - paragraph [ref=e501]: "3.3"
+                    - paragraph [ref=e502]: (3)
+            - link "Tiktok Comment Scraper avatar Tiktok Comment Scraper futurizerush/tiktok-comment-scraper Collect comments and replies from public TikTok posts in a clean, ready-to-use dataset. Supports video posts, photo posts, multiple URLs per run, and short links. User avatar Rush 221 5.0 (2)" [ref=e503] [cursor=pointer]:
+              - /url: /futurizerush/tiktok-comment-scraper
+              - generic [ref=e504]:
+                - generic [ref=e505]:
+                  - generic [ref=e506]:
+                    - img "Tiktok Comment Scraper avatar" [ref=e507]
+                    - img [ref=e509]
+                  - generic [ref=e511]:
+                    - heading "Tiktok Comment Scraper" [level=3] [ref=e513]
+                    - paragraph [ref=e514]: futurizerush/tiktok-comment-scraper
+                - paragraph [ref=e515]: Collect comments and replies from public TikTok posts in a clean, ready-to-use dataset. Supports video posts, photo posts, multiple URLs per run, and short links.
+              - generic [ref=e516]:
+                - generic [ref=e517]:
+                  - img "User avatar" [ref=e518]
+                  - paragraph [ref=e519]: Rush
+                - generic [ref=e520]:
+                  - generic [ref=e521]:
+                    - img [ref=e522]
+                    - paragraph [ref=e524]: "221"
+                  - generic [ref=e526]:
+                    - img [ref=e527]
+                    - paragraph [ref=e529]: "5.0"
+                    - paragraph [ref=e530]: (2)
+            - link "10times Events Scraper - Trade Shows & Conferences API avatar 10times Events Scraper - Trade Shows & Conferences API zen-studio/10times-events-scraper Extract trade shows, conferences, and exhibitions from 10times.com with 59 data points per event. Filter by city name, industry, date, or keyword. Get organizer contacts, venue details, visitor estimates, exhibitor counts, and full schedules. 1,000 events in under 60 seconds. No account needed. User avatar Zen Studio 136" [ref=e531] [cursor=pointer]:
+              - /url: /zen-studio/10times-events-scraper
+              - generic [ref=e532]:
+                - generic [ref=e533]:
+                  - generic [ref=e534]:
+                    - img "10times Events Scraper - Trade Shows & Conferences API avatar" [ref=e535]
+                    - img [ref=e537]
+                  - generic [ref=e539]:
+                    - heading "10times Events Scraper - Trade Shows & Conferences API" [level=3] [ref=e541]
+                    - paragraph [ref=e542]: zen-studio/10times-events-scraper
+                - paragraph [ref=e543]: Extract trade shows, conferences, and exhibitions from 10times.com with 59 data points per event. Filter by city name, industry, date, or keyword. Get organizer contacts, venue details, visitor estimates, exhibitor counts, and full schedules. 1,000 events in under 60 seconds. No account needed.
+              - generic [ref=e544]:
+                - generic [ref=e545]:
+                  - img "User avatar" [ref=e546]
+                  - paragraph [ref=e547]: Zen Studio
+                - generic [ref=e549]:
+                  - img [ref=e550]
+                  - paragraph [ref=e552]: "136"
+            - link "Facebook Ad Library Spy - Meta Ads Intelligence avatar Facebook Ad Library Spy - Meta Ads Intelligence viralanalyzer/facebook-ads-library Search the Meta Ad Library for Facebook and Instagram ads. User avatar viralanalyzer 326 2.3 (5)" [ref=e554] [cursor=pointer]:
+              - /url: /viralanalyzer/facebook-ads-library
+              - generic [ref=e555]:
+                - generic [ref=e556]:
+                  - generic [ref=e557]:
+                    - img "Facebook Ad Library Spy - Meta Ads Intelligence avatar" [ref=e558]
+                    - img [ref=e560]
+                  - generic [ref=e562]:
+                    - heading "Facebook Ad Library Spy - Meta Ads Intelligence" [level=3] [ref=e564]
+                    - paragraph [ref=e565]: viralanalyzer/facebook-ads-library
+                - paragraph [ref=e566]: Search the Meta Ad Library for Facebook and Instagram ads.
+              - generic [ref=e567]:
+                - generic [ref=e568]:
+                  - img "User avatar" [ref=e569]
+                  - paragraph [ref=e570]: viralanalyzer
+                - generic [ref=e571]:
+                  - generic [ref=e572]:
+                    - img [ref=e573]
+                    - paragraph [ref=e575]: "326"
+                  - generic [ref=e577]:
+                    - img [ref=e578]
+                    - paragraph [ref=e580]: "2.3"
+                    - paragraph [ref=e581]: (5)
+        - generic [ref=e582]:
+          - generic [ref=e583]:
+            - generic [ref=e584]:
+              - heading "Discover social scraping hidden gems" [level=3] [ref=e585]
+              - paragraph [ref=e586]: Meet the Apify Actors you might've missed — low-profile, high-impact tools for serious social media scraping.
+            - link "Browse Actors" [ref=e588] [cursor=pointer]:
+              - /url: /store/collections/hidden-gems-social-media
+              - paragraph [ref=e589]: Browse Actors
+          - img [ref=e591]
+        - generic [ref=e600]:
+          - generic [ref=e601]:
+            - heading "Popular Actors from the community" [level=4] [ref=e603]
+            - link "View all" [ref=e604] [cursor=pointer]:
+              - /url: /store/categories?managedBy=COMMUNITY
+              - generic [ref=e605]: View all
+              - img [ref=e606]
+          - generic [ref=e608]:
+            - link "Reddit Scraper Lite avatar Reddit Scraper Lite trudax/reddit-scraper-lite Pay Per Result, unlimited Reddit web scraper to crawl posts, comments, communities, and users without login. Limit web scraping by number of posts or items and extract all data in a dataset in multiple formats. User avatar Trudax 22K 4.6 (35)" [ref=e609] [cursor=pointer]:
+              - /url: /trudax/reddit-scraper-lite
+              - generic [ref=e610]:
+                - generic [ref=e611]:
+                  - img "Reddit Scraper Lite avatar" [ref=e613]
+                  - generic [ref=e614]:
+                    - heading "Reddit Scraper Lite" [level=3] [ref=e616]
+                    - paragraph [ref=e617]: trudax/reddit-scraper-lite
+                - paragraph [ref=e618]: Pay Per Result, unlimited Reddit web scraper to crawl posts, comments, communities, and users without login. Limit web scraping by number of posts or items and extract all data in a dataset in multiple formats.
+              - generic [ref=e619]:
+                - generic [ref=e620]:
+                  - img "User avatar" [ref=e621]
+                  - paragraph [ref=e622]: Trudax
+                - generic [ref=e623]:
+                  - generic [ref=e624]:
+                    - img [ref=e625]
+                    - paragraph [ref=e627]: 22K
+                  - generic [ref=e629]:
+                    - img [ref=e630]
+                    - paragraph [ref=e632]: "4.6"
+                    - paragraph [ref=e633]: (35)
+            - link "Reddit Scraper avatar Reddit Scraper trudax/reddit-scraper Unlimited Reddit web scraper to crawl posts, comments, communities, and users without login. Limit web scraping by number of posts or items and extract all data in a dataset in multiple formats. User avatar Trudax 13K 3.4 (25)" [ref=e634] [cursor=pointer]:
+              - /url: /trudax/reddit-scraper
+              - generic [ref=e635]:
+                - generic [ref=e636]:
+                  - img "Reddit Scraper avatar" [ref=e638]
+                  - generic [ref=e639]:
+                    - heading "Reddit Scraper" [level=3] [ref=e641]
+                    - paragraph [ref=e642]: trudax/reddit-scraper
+                - paragraph [ref=e643]: Unlimited Reddit web scraper to crawl posts, comments, communities, and users without login. Limit web scraping by number of posts or items and extract all data in a dataset in multiple formats.
+              - generic [ref=e644]:
+                - generic [ref=e645]:
+                  - img "User avatar" [ref=e646]
+                  - paragraph [ref=e647]: Trudax
+                - generic [ref=e648]:
+                  - generic [ref=e649]:
+                    - img [ref=e650]
+                    - paragraph [ref=e652]: 13K
+                  - generic [ref=e654]:
+                    - img [ref=e655]
+                    - paragraph [ref=e657]: "3.4"
+                    - paragraph [ref=e658]: (25)
+            - link "Linkedin Post Scraper ✅ No cookies · $1 per 1k avatar Linkedin Post Scraper ✅ No cookies · $1 per 1k supreme_coder/linkedin-post Scrape unlimited Linkedin posts without risking your Linkedin account. Live data, Super fast scraping at affordable cost. High success rate User avatar Supreme Coder 13K 4.8 (47)" [ref=e659] [cursor=pointer]:
+              - /url: /supreme_coder/linkedin-post
+              - generic [ref=e660]:
+                - generic [ref=e661]:
+                  - img "Linkedin Post Scraper ✅ No cookies · $1 per 1k avatar" [ref=e663]
+                  - generic [ref=e664]:
+                    - heading "Linkedin Post Scraper ✅ No cookies · $1 per 1k" [level=3] [ref=e666]
+                    - paragraph [ref=e667]: supreme_coder/linkedin-post
+                - paragraph [ref=e668]: Scrape unlimited Linkedin posts without risking your Linkedin account. Live data, Super fast scraping at affordable cost. High success rate
+              - generic [ref=e669]:
+                - generic [ref=e670]:
+                  - img "User avatar" [ref=e671]
+                  - paragraph [ref=e672]: Supreme Coder
+                - generic [ref=e673]:
+                  - generic [ref=e674]:
+                    - img [ref=e675]
+                    - paragraph [ref=e677]: 13K
+                  - generic [ref=e679]:
+                    - img [ref=e680]
+                    - paragraph [ref=e682]: "4.8"
+                    - paragraph [ref=e683]: (47)
+            - link "Tweet Scraper|$0.25/1K Tweets | Pay-Per Result | No Rate Limits avatar Tweet Scraper|$0.25/1K Tweets | Pay-Per Result | No Rate Limits kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest Only $0.25/1000 tweets for Twitter scraping, 100% reliability, swift data retrieval.This incredible low price is almost too good to be true.Thanks to our large-scale operations and efficient servers, we can offer you rock-bottom prices that no competitors can match. Don't miss this opportunity ! User avatar Kaito T 13K 4.3 (65)" [ref=e684] [cursor=pointer]:
+              - /url: /kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest
+              - generic [ref=e685]:
+                - generic [ref=e686]:
+                  - img "Tweet Scraper|$0.25/1K Tweets | Pay-Per Result | No Rate Limits avatar" [ref=e688]
+                  - generic [ref=e689]:
+                    - heading "Tweet Scraper|$0.25/1K Tweets | Pay-Per Result | No Rate Limits" [level=3] [ref=e691]
+                    - paragraph [ref=e692]: kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest
+                - paragraph [ref=e693]: Only $0.25/1000 tweets for Twitter scraping, 100% reliability, swift data retrieval.This incredible low price is almost too good to be true.Thanks to our large-scale operations and efficient servers, we can offer you rock-bottom prices that no competitors can match. Don't miss this opportunity !
+              - generic [ref=e694]:
+                - generic [ref=e695]:
+                  - img "User avatar" [ref=e696]
+                  - paragraph [ref=e697]: Kaito T
+                - generic [ref=e698]:
+                  - generic [ref=e699]:
+                    - img [ref=e700]
+                    - paragraph [ref=e702]: 13K
+                  - generic [ref=e704]:
+                    - img [ref=e705]
+                    - paragraph [ref=e707]: "4.3"
+                    - paragraph [ref=e708]: (65)
+            - link "LinkedIn Profile Posts Scraper (No Cookies) avatar LinkedIn Profile Posts Scraper (No Cookies) harvestapi/linkedin-profile-posts Extract posts from LinkedIn profiles, including content, media, engagement, reactions, comments, and more. No cookies or account required. User avatar HarvestAPI 13K 4.9 (24)" [ref=e709] [cursor=pointer]:
+              - /url: /harvestapi/linkedin-profile-posts
+              - generic [ref=e710]:
+                - generic [ref=e711]:
+                  - img "LinkedIn Profile Posts Scraper (No Cookies) avatar" [ref=e713]
+                  - generic [ref=e714]:
+                    - heading "LinkedIn Profile Posts Scraper (No Cookies)" [level=3] [ref=e716]
+                    - paragraph [ref=e717]: harvestapi/linkedin-profile-posts
+                - paragraph [ref=e718]: Extract posts from LinkedIn profiles, including content, media, engagement, reactions, comments, and more. No cookies or account required.
+              - generic [ref=e719]:
+                - generic [ref=e720]:
+                  - img "User avatar" [ref=e721]
+                  - paragraph [ref=e722]: HarvestAPI
+                - generic [ref=e723]:
+                  - generic [ref=e724]:
+                    - img [ref=e725]
+                    - paragraph [ref=e727]: 13K
+                  - generic [ref=e729]:
+                    - img [ref=e730]
+                    - paragraph [ref=e732]: "4.9"
+                    - paragraph [ref=e733]: (24)
+            - link "Linkedin Post Search Scraper (No Cookies) avatar Linkedin Post Search Scraper (No Cookies) harvestapi/linkedin-post-search Search LinkedIn Posts with advanced filters by target profiles or companies. No cookies or account required. User avatar HarvestAPI 11K 5.0 (19)" [ref=e734] [cursor=pointer]:
+              - /url: /harvestapi/linkedin-post-search
+              - generic [ref=e735]:
+                - generic [ref=e736]:
+                  - img "Linkedin Post Search Scraper (No Cookies) avatar" [ref=e738]
+                  - generic [ref=e739]:
+                    - heading "Linkedin Post Search Scraper (No Cookies)" [level=3] [ref=e741]
+                    - paragraph [ref=e742]: harvestapi/linkedin-post-search
+                - paragraph [ref=e743]: Search LinkedIn Posts with advanced filters by target profiles or companies. No cookies or account required.
+              - generic [ref=e744]:
+                - generic [ref=e745]:
+                  - img "User avatar" [ref=e746]
+                  - paragraph [ref=e747]: HarvestAPI
+                - generic [ref=e748]:
+                  - generic [ref=e749]:
+                    - img [ref=e750]
+                    - paragraph [ref=e752]: 11K
+                  - generic [ref=e754]:
+                    - img [ref=e755]
+                    - paragraph [ref=e757]: "5.0"
+                    - paragraph [ref=e758]: (19)
+      - generic [ref=e760]:
+        - generic [ref=e761]:
+          - heading "Get started nowCopy link to clipboard" [level=2] [ref=e762]:
+            - text: Get started now
+            - link "Copy link to clipboard":
+              - /url: "#get-started-now"
+              - img [ref=e763] [cursor=pointer]
+          - paragraph [ref=e765]: Step up your web scraping and automation.
+        - generic [ref=e766]:
+          - link "Sign up for free" [ref=e767] [cursor=pointer]:
+            - /url: https://console.apify.com
+          - link "Build your own Actor" [ref=e768] [cursor=pointer]:
+            - /url: /templates
+  - contentinfo [ref=e770]:
+    - generic [ref=e771]:
+      - generic [ref=e772]:
+        - generic [ref=e774]:
+          - heading "Product" [level=3] [ref=e775]:
+            - button "Product" [ref=e776]:
+              - paragraph [ref=e777]: Product
+          - list [ref=e779]:
+            - listitem [ref=e780]:
+              - paragraph [ref=e781]:
+                - link "Apify Store" [ref=e782] [cursor=pointer]:
+                  - /url: /store
+            - listitem [ref=e783]:
+              - paragraph [ref=e784]:
+                - link "Integrations" [ref=e785] [cursor=pointer]:
+                  - /url: /integrations
+            - listitem [ref=e786]:
+              - paragraph [ref=e787]:
+                - link "Proxy" [ref=e788] [cursor=pointer]:
+                  - /url: /proxy
+            - listitem [ref=e789]:
+              - paragraph [ref=e790]:
+                - link "MCP" [ref=e791] [cursor=pointer]:
+                  - /url: https://mcp.apify.com/
+            - listitem [ref=e792]:
+              - paragraph [ref=e793]:
+                - link "Crawlee" [ref=e794] [cursor=pointer]:
+                  - /url: https://crawlee.dev/?__hstc=160404322.300a0246ada67f9dcd403abde73fb0e6.1779072955623.1779072955623.1779072955623.1&__hssc=160404322.7.1779072955623&__hsfp=d0e9c1d52ecd6c4d04b31eba82565a4b
+                  - text: Crawlee
+                  - img [ref=e795]
+        - generic [ref=e798]:
+          - heading "Developers" [level=3] [ref=e799]:
+            - button "Developers" [ref=e800]:
+              - paragraph [ref=e801]: Developers
+          - list [ref=e803]:
+            - listitem [ref=e804]:
+              - paragraph [ref=e805]:
+                - link "Documentation" [ref=e806] [cursor=pointer]:
+                  - /url: https://docs.apify.com/
+            - listitem [ref=e807]:
+              - paragraph [ref=e808]:
+                - link "Code templates" [ref=e809] [cursor=pointer]:
+                  - /url: /templates
+            - listitem [ref=e810]:
+              - paragraph [ref=e811]:
+                - link "API reference" [ref=e812] [cursor=pointer]:
+                  - /url: https://docs.apify.com/api
+            - listitem [ref=e813]:
+              - paragraph [ref=e814]:
+                - link "Get paid on Apify" [ref=e815] [cursor=pointer]:
+                  - /url: /partners/actor-developers
+        - generic [ref=e817]:
+          - heading "Consulting" [level=3] [ref=e818]:
+            - button "Consulting" [ref=e819]:
+              - paragraph [ref=e820]: Consulting
+          - list [ref=e822]:
+            - listitem [ref=e823]:
+              - paragraph [ref=e824]:
+                - link "Professional Services" [ref=e825] [cursor=pointer]:
+                  - /url: /professional-services
+            - listitem [ref=e826]:
+              - paragraph [ref=e827]:
+                - link "Apify Partners" [ref=e828] [cursor=pointer]:
+                  - /url: /partners
+        - generic [ref=e830]:
+          - heading "Support" [level=3] [ref=e831]:
+            - button "Support" [ref=e832]:
+              - paragraph [ref=e833]: Support
+          - list [ref=e835]:
+            - listitem [ref=e836]:
+              - paragraph [ref=e837]:
+                - link "Help & Support" [ref=e838] [cursor=pointer]:
+                  - /url: https://help.apify.com/en/
+                  - text: Help & Support
+                  - img [ref=e839]
+            - listitem [ref=e841]:
+              - paragraph [ref=e842]:
+                - link "Submit your ideas" [ref=e843] [cursor=pointer]:
+                  - /url: /ideas
+            - listitem [ref=e844]:
+              - paragraph [ref=e845]:
+                - link "Forum" [ref=e846] [cursor=pointer]:
+                  - /url: https://discord.apify.com/
+        - generic [ref=e848]:
+          - heading "Spotlight" [level=3] [ref=e849]:
+            - button "Spotlight" [ref=e850]:
+              - paragraph [ref=e851]: Spotlight
+          - list [ref=e853]:
+            - listitem [ref=e854]:
+              - paragraph [ref=e855]:
+                - link "APIs" [ref=e856] [cursor=pointer]:
+                  - /url: /api
+            - listitem [ref=e857]:
+              - paragraph [ref=e858]:
+                - link "What is web scraping?" [ref=e859] [cursor=pointer]:
+                  - /url: https://blog.apify.com/what-is-web-scraping/
+            - listitem [ref=e860]:
+              - paragraph [ref=e861]:
+                - link "Best web scraping tools" [ref=e862] [cursor=pointer]:
+                  - /url: https://blog.apify.com/best-web-scraping-tools/
+            - listitem [ref=e863]:
+              - paragraph [ref=e864]:
+                - link "Python web scraping libraries" [ref=e865] [cursor=pointer]:
+                  - /url: https://blog.apify.com/what-are-the-best-python-web-scraping-libraries/
+            - listitem [ref=e866]:
+              - paragraph [ref=e867]:
+                - link "Scrapers" [ref=e868] [cursor=pointer]:
+                  - /url: /scrapers
+        - generic [ref=e870]:
+          - heading "Company" [level=3] [ref=e871]:
+            - button "Company" [ref=e872]:
+              - paragraph [ref=e873]: Company
+          - list [ref=e875]:
+            - listitem [ref=e876]:
+              - paragraph [ref=e877]:
+                - link "About Apify" [ref=e878] [cursor=pointer]:
+                  - /url: /about
+            - listitem [ref=e879]:
+              - paragraph [ref=e880]:
+                - link "Contact us" [ref=e881] [cursor=pointer]:
+                  - /url: /contact
+            - listitem [ref=e882]:
+              - paragraph [ref=e883]:
+                - link "Events" [ref=e884] [cursor=pointer]:
+                  - /url: https://lu.ma/apify
+                  - text: Events
+                  - img [ref=e885]
+            - listitem [ref=e887]:
+              - paragraph [ref=e888]:
+                - link "Blog" [ref=e889] [cursor=pointer]:
+                  - /url: https://blog.apify.com/
+            - listitem [ref=e890]:
+              - paragraph [ref=e891]:
+                - link "Become an affiliate" [ref=e892] [cursor=pointer]:
+                  - /url: /partners/affiliate
+            - listitem [ref=e893]:
+              - paragraph [ref=e894]:
+                - link "Customer stories" [ref=e895] [cursor=pointer]:
+                  - /url: /success-stories
+            - listitem [ref=e896]:
+              - paragraph [ref=e897]:
+                - link "Changelog" [ref=e898] [cursor=pointer]:
+                  - /url: /change-log
+            - listitem [ref=e899]:
+              - paragraph [ref=e900]:
+                - link "Jobs We're hiring!" [ref=e901] [cursor=pointer]:
+                  - /url: /jobs
+                  - text: Jobs
+                  - generic [ref=e902]: We're hiring!
+            - listitem [ref=e903]:
+              - paragraph [ref=e904]:
+                - link "Brand" [ref=e905] [cursor=pointer]:
+                  - /url: /resources/brand
+            - listitem [ref=e906]:
+              - paragraph [ref=e907]:
+                - link "Impressum" [ref=e908] [cursor=pointer]:
+                  - /url: https://docs.apify.com/legal
+                  - text: Impressum
+                  - img [ref=e909]
+      - generic [ref=e911]:
+        - link "Apify" [ref=e912] [cursor=pointer]:
+          - /url: /
+          - img "Apify logo" [ref=e913]
+        - generic [ref=e914]:
+          - paragraph [ref=e915]: Socials
+          - list [ref=e916]:
+            - listitem [ref=e917]:
+              - link "LinkedIn" [ref=e918] [cursor=pointer]:
+                - /url: http://linkedin.com/company/apify/
+                - generic "LinkedIn image" [ref=e919]
+            - listitem [ref=e920]:
+              - link "X" [ref=e921] [cursor=pointer]:
+                - /url: https://x.com/apify
+                - generic "X image" [ref=e922]
+            - listitem [ref=e923]:
+              - link "GitHub" [ref=e924] [cursor=pointer]:
+                - /url: https://github.com/apify
+                - generic "GitHub image" [ref=e925]
+            - listitem [ref=e926]:
+              - link "YouTube" [ref=e927] [cursor=pointer]:
+                - /url: https://www.youtube.com/apify
+                - generic "YouTube image" [ref=e928]
+            - listitem [ref=e929]:
+              - link "Discord" [ref=e930] [cursor=pointer]:
+                - /url: https://discord.com/invite/jyEM2PRvMU
+                - generic "Discord image" [ref=e931]
+            - listitem [ref=e932]:
+              - link "TikTok" [ref=e933] [cursor=pointer]:
+                - /url: https://www.tiktok.com/@apifytech
+                - generic "TikTok image" [ref=e934]
+        - generic [ref=e935]:
+          - paragraph [ref=e936]: Security
+          - list [ref=e937]:
+            - listitem:
+              - link "GDPR":
+                - /url: https://docs.apify.com/legal/gdpr-information
+                - img "GDPR image"
+            - listitem:
+              - link "SOC2":
+                - /url: https://trust.apify.com/
+                - img "SOC2 image"
+        - generic [ref=e938]:
+          - paragraph [ref=e939]: Reviews
+          - list [ref=e940]:
+            - listitem:
+              - link "GetApp Apify user reviews":
+                - /url: https://www.getapp.com/business-intelligence-analytics-software/a/apify/
+                - img "GetApp Apify user reviews image"
+            - listitem:
+              - link "Software Advice Apify reviews":
+                - /url: https://www.softwareadvice.com/data-extraction/apify-profile/
+                - img "Software Advice Apify reviews image"
+            - listitem:
+              - link "Capterra Apify user reviews":
+                - /url: https://www.capterra.com/p/150854/Apify/
+                - img "Capterra Apify user reviews image"
+            - listitem:
+              - link "G2 Apify user reviews":
+                - /url: https://www.g2.com/products/apify/reviews
+                - img "G2 Apify user reviews image"
+            - listitem:
+              - link "TrustRadius Apify user reviews":
+                - /url: https://www.trustradius.com/products/apify/reviews
+                - img "TrustRadius Apify user reviews image"
+            - listitem:
+              - link "Crozdesk Apify user reviews":
+                - /url: https://crozdesk.com/software/apify
+                - img "Crozdesk Apify user reviews image"
+    - generic [ref=e942]:
+      - link "All systems operational" [ref=e943] [cursor=pointer]:
+        - /url: https://status.apify.com/
+        - paragraph [ref=e945]: All systems operational
+      - generic [ref=e946]:
+        - paragraph [ref=e947]:
+          - link "Terms of Use" [ref=e948] [cursor=pointer]:
+            - /url: https://docs.apify.com/legal/general-terms-and-conditions
+        - paragraph [ref=e949]:
+          - link "Privacy Policy" [ref=e950] [cursor=pointer]:
+            - /url: https://docs.apify.com/legal/privacy-policy
+        - paragraph [ref=e951]:
+          - link "Cookie Policy" [ref=e952] [cursor=pointer]:
+            - /url: https://docs.apify.com/legal/cookie-policy
+        - button "Cookie settings" [ref=e954] [cursor=pointer]
+        - paragraph [ref=e955]:
+          - link "© 2026 Apify" [ref=e956] [cursor=pointer]:
+            - /url: https://docs.apify.com/legal
+  - alert [ref=e957]
+  - iframe [ref=e958]:
+    

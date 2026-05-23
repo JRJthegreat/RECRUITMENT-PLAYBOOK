@@ -1,0 +1,1191 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "Skip to content" [ref=e3] [cursor=pointer]:
+      - /url: "#main"
+    - generic [ref=e5]:
+      - link "Apify" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img "Apify logo" [ref=e7]
+      - navigation [ref=e8]:
+        - list [ref=e9]:
+          - listitem [ref=e10]:
+            - button "Product" [ref=e12] [cursor=pointer]:
+              - paragraph [ref=e13]: Product
+              - img [ref=e14]
+            - menu:
+              - generic:
+                - menuitem "Promotion image background Start here! Get data with ready-made web scrapers for popular websites Browse 30,714 Actors":
+                  - img "Promotion image background"
+                  - generic:
+                    - paragraph: Start here!
+                    - paragraph: Get data with ready-made web scrapers for popular websites
+                    - paragraph:
+                      - text: Browse 30,714 Actors
+                      - img
+                - menuitem "Apify platform Apify Store Actors Integrations MCP":
+                  - generic:
+                    - paragraph: Apify platform
+                    - list:
+                      - listitem:
+                        - link "Apify Store":
+                          - /url: /store
+                          - generic:
+                            - generic:
+                              - paragraph: Apify Store
+                            - paragraph: Pre-built web scraping tools
+                      - listitem:
+                        - link "Actors":
+                          - /url: /actors
+                          - generic:
+                            - generic:
+                              - paragraph: Actors
+                            - paragraph: Build and run serverless programs
+                      - listitem:
+                        - link "Integrations":
+                          - /url: /integrations
+                          - generic:
+                            - generic:
+                              - paragraph: Integrations
+                            - paragraph: Connect with apps and services
+                      - listitem:
+                        - link "MCP":
+                          - /url: https://mcp.apify.com/
+                          - generic:
+                            - generic:
+                              - paragraph: MCP
+                            - paragraph: Give your AI access to Actors
+                - menuitem "Anti-blocking Anti-blocking Proxy Open source Crawlee":
+                  - generic:
+                    - paragraph: Anti-blocking
+                    - list:
+                      - listitem:
+                        - link "Anti-blocking":
+                          - /url: /anti-blocking
+                          - generic:
+                            - generic:
+                              - paragraph: Anti-blocking
+                            - paragraph: Scrape without getting blocked
+                      - listitem:
+                        - link "Proxy":
+                          - /url: /proxy
+                          - generic:
+                            - generic:
+                              - paragraph: Proxy
+                            - paragraph: Rotate scraper IP addresses
+                  - generic:
+                    - paragraph: Open source
+                    - list:
+                      - listitem:
+                        - link "Crawlee":
+                          - /url: https://crawlee.dev/
+                          - generic:
+                            - generic:
+                              - paragraph: Crawlee
+                              - img
+                            - paragraph: Web scraping and crawling library
+          - listitem [ref=e16]:
+            - button "Solutions" [ref=e18] [cursor=pointer]:
+              - paragraph [ref=e19]: Solutions
+              - img [ref=e20]
+            - menu:
+              - generic:
+                - menuitem "Promotion image background MCP server configuration Configure your Apify MCP server with Actors and tools for seamless integration with MCP clients. Start building":
+                  - img "Promotion image background"
+                  - generic:
+                    - paragraph: MCP server configuration
+                    - paragraph: Configure your Apify MCP server with Actors and tools for seamless integration with MCP clients.
+                    - paragraph:
+                      - text: Start building
+                      - img
+                - menuitem "Web data for Enterprise Startups Universities Nonprofits":
+                  - generic:
+                    - paragraph: Web data for
+                    - list:
+                      - listitem:
+                        - link "Enterprise":
+                          - /url: /enterprise
+                          - generic:
+                            - generic:
+                              - paragraph: Enterprise
+                      - listitem:
+                        - link "Startups":
+                          - /url: /resources/startups
+                          - generic:
+                            - generic:
+                              - paragraph: Startups
+                      - listitem:
+                        - link "Universities":
+                          - /url: /resources/universities
+                          - generic:
+                            - generic:
+                              - paragraph: Universities
+                      - listitem:
+                        - link "Nonprofits":
+                          - /url: /resources/nonprofits
+                          - generic:
+                            - generic:
+                              - paragraph: Nonprofits
+                - menuitem "Use cases Data for generative AI Data for AI agents Lead generation Market research View more →":
+                  - generic:
+                    - paragraph: Use cases
+                    - list:
+                      - listitem:
+                        - link "Data for generative AI":
+                          - /url: /use-cases/data-for-generative-ai
+                          - generic:
+                            - generic:
+                              - paragraph: Data for generative AI
+                      - listitem:
+                        - link "Data for AI agents":
+                          - /url: /use-cases/data-for-ai-agents
+                          - generic:
+                            - generic:
+                              - paragraph: Data for AI agents
+                      - listitem:
+                        - link "Lead generation":
+                          - /url: /use-cases/lead-generation
+                          - generic:
+                            - generic:
+                              - paragraph: Lead generation
+                      - listitem:
+                        - link "Market research":
+                          - /url: /use-cases/market-research
+                          - generic:
+                            - generic:
+                              - paragraph: Market research
+                      - listitem:
+                        - link "View more →":
+                          - /url: /use-cases
+                          - generic:
+                            - generic:
+                              - paragraph: View more →
+                - menuitem "Consulting Apify Professional Services Apify Partners":
+                  - generic:
+                    - paragraph: Consulting
+                    - list:
+                      - listitem:
+                        - link "Apify Professional Services":
+                          - /url: /professional-services
+                          - generic:
+                            - generic:
+                              - paragraph: Apify Professional Services
+                      - listitem:
+                        - link "Apify Partners":
+                          - /url: /partners
+                          - generic:
+                            - generic:
+                              - paragraph: Apify Partners
+          - listitem [ref=e22]:
+            - button "Developers" [ref=e24] [cursor=pointer]:
+              - paragraph [ref=e25]: Developers
+              - img [ref=e26]
+            - menu:
+              - generic:
+                - menuitem "Documentation Get started Code templates Web scraping academy Monetize your code":
+                  - generic:
+                    - list:
+                      - listitem:
+                        - link "Documentation":
+                          - /url: https://docs.apify.com/
+                          - generic:
+                            - generic:
+                              - paragraph: Documentation
+                            - paragraph: Full reference for the Apify platform
+                  - generic:
+                    - paragraph: Get started
+                    - list:
+                      - listitem:
+                        - link "Code templates":
+                          - /url: /templates
+                          - generic:
+                            - generic:
+                              - paragraph: Code templates
+                            - paragraph: Python, JavaScript, and TypeScript
+                      - listitem:
+                        - link "Web scraping academy":
+                          - /url: https://docs.apify.com/academy
+                          - generic:
+                            - generic:
+                              - paragraph: Web scraping academy
+                            - paragraph: Courses for beginners and experts
+                      - listitem:
+                        - link "Monetize your code":
+                          - /url: /partners/actor-developers
+                          - generic:
+                            - generic:
+                              - paragraph: Monetize your code
+                            - paragraph: Publish your scrapers and get paid
+                - menuitem "Learn API reference CLI SDK MCP Crawlee":
+                  - generic:
+                    - paragraph: Learn
+                    - list:
+                      - listitem:
+                        - link "API reference":
+                          - /url: https://docs.apify.com/api
+                          - generic:
+                            - generic:
+                              - paragraph: API reference
+                      - listitem:
+                        - link "CLI":
+                          - /url: https://docs.apify.com/cli/
+                          - generic:
+                            - generic:
+                              - paragraph: CLI
+                      - listitem:
+                        - link "SDK":
+                          - /url: https://docs.apify.com/sdk
+                          - generic:
+                            - generic:
+                              - paragraph: SDK
+                      - listitem:
+                        - link "MCP":
+                          - /url: https://docs.apify.com/platform/integrations/mcp
+                          - generic:
+                            - generic:
+                              - paragraph: MCP
+                      - listitem:
+                        - link "Crawlee":
+                          - /url: https://crawlee.dev/
+                          - generic:
+                            - generic:
+                              - paragraph: Crawlee
+                              - img
+                - menuitem "Promotion image background Earn from your code $1M paid out last month. Many developers earn over $3k. Start earning now":
+                  - img "Promotion image background"
+                  - generic:
+                    - paragraph: Earn from your code
+                    - paragraph: $1M paid out last month. Many developers earn over $3k.
+                    - paragraph:
+                      - text: Start earning now
+                      - img
+          - listitem [ref=e28]:
+            - button "Resources" [ref=e30] [cursor=pointer]:
+              - paragraph [ref=e31]: Resources
+              - img [ref=e32]
+            - menu:
+              - generic:
+                - menuitem "Help and support Actor ideas Changelog Customer stories":
+                  - generic:
+                    - paragraph
+                    - list:
+                      - listitem:
+                        - link "Help and support":
+                          - /url: https://help.apify.com/en/
+                          - generic:
+                            - generic:
+                              - paragraph: Help and support
+                            - paragraph: Advice and answers about Apify
+                      - listitem:
+                        - link "Actor ideas":
+                          - /url: /ideas
+                          - generic:
+                            - generic:
+                              - paragraph: Actor ideas
+                            - paragraph: Get inspired to build Actors
+                      - listitem:
+                        - link "Changelog":
+                          - /url: /change-log
+                          - generic:
+                            - generic:
+                              - paragraph: Changelog
+                            - paragraph: See what’s new on Apify
+                      - listitem:
+                        - link "Customer stories":
+                          - /url: /success-stories
+                          - generic:
+                            - generic:
+                              - paragraph: Customer stories
+                            - paragraph: Find out how others use Apify
+                - menuitem "Company About Apify Contact us Blog Live events Partners Jobs":
+                  - generic:
+                    - paragraph: Company
+                    - list:
+                      - listitem:
+                        - link "About Apify":
+                          - /url: /about
+                          - generic:
+                            - generic:
+                              - paragraph: About Apify
+                      - listitem:
+                        - link "Contact us":
+                          - /url: /contact
+                          - generic:
+                            - generic:
+                              - paragraph: Contact us
+                      - listitem:
+                        - link "Blog":
+                          - /url: https://blog.apify.com/
+                          - generic:
+                            - generic:
+                              - paragraph: Blog
+                      - listitem:
+                        - link "Live events":
+                          - /url: https://lu.ma/apify
+                          - generic:
+                            - generic:
+                              - paragraph: Live events
+                      - listitem:
+                        - link "Partners":
+                          - /url: /partners
+                          - generic:
+                            - generic:
+                              - paragraph: Partners
+                      - listitem:
+                        - link "Jobs":
+                          - /url: /jobs
+                          - generic:
+                            - generic:
+                              - paragraph: Jobs
+                              - generic:
+                                - paragraph: We're hiring!
+                - menuitem "Promotion image background Join our Discord Talk to scraping experts":
+                  - img "Promotion image background"
+                  - generic:
+                    - paragraph: Join our Discord
+                    - paragraph:
+                      - text: Talk to scraping experts
+                      - img
+          - listitem [ref=e34]:
+            - link "Pricing" [ref=e36] [cursor=pointer]:
+              - /url: /pricing
+              - paragraph [ref=e37]: Pricing
+  - main [ref=e38]:
+    - generic [ref=e39]:
+      - generic:
+        - generic:
+          - generic:
+            - img "Linkedin Company Details Scraper (No Cookies) ✅ Bulk avatar"
+            - generic:
+              - paragraph: Linkedin Company Details Scraper (No Cookies) ✅ Bulk
+          - generic:
+            - generic:
+              - img
+              - paragraph: Pricing
+              - paragraph: from $3.00 / 1,000 companies
+      - generic [ref=e41]:
+        - link "Go to Apify Store" [ref=e42] [cursor=pointer]:
+          - /url: /store
+          - img [ref=e43]
+          - generic [ref=e45]: Go to Apify Store
+        - generic [ref=e46]:
+          - generic [ref=e48]:
+            - generic [ref=e49]:
+              - img "Linkedin Company Details Scraper (No Cookies) ✅ Bulk" [ref=e51]
+              - generic [ref=e52]:
+                - heading "Linkedin Company Details Scraper (No Cookies) ✅ Bulk" [level=1] [ref=e54]
+                - button "Copy" [ref=e55] [cursor=pointer]:
+                  - paragraph [ref=e56]: harvestapi/linkedin-company
+                  - img [ref=e57]
+            - generic [ref=e60]:
+              - link "Try for free" [ref=e62] [cursor=pointer]:
+                - /url: https://console.apify.com/actors/UwSdACBp7ymaGUJjS?addFromActorId=UwSdACBp7ymaGUJjS
+              - combobox [ref=e64] [cursor=pointer]:
+                - img [ref=e65]
+            - paragraph [ref=e69]: Extract detailed information from LinkedIn Companies such as company name, address, phone numbers, website, employee count, and more. Find LinkedIn company URLs by name in Bulk. No cookies or account required.
+          - generic [ref=e71]:
+            - generic [ref=e73]:
+              - generic [ref=e74]:
+                - generic [ref=e75]:
+                  - paragraph [ref=e76]: Pricing
+                  - paragraph [ref=e78] [cursor=pointer]: from $3.00 / 1,000 companies
+                - generic [ref=e79]:
+                  - paragraph [ref=e80]: Rating
+                  - generic [ref=e81] [cursor=pointer]:
+                    - paragraph [ref=e82]: "4.6"
+                    - generic [ref=e83]:
+                      - img [ref=e84]
+                      - img [ref=e86]
+                      - img [ref=e88]
+                      - img [ref=e90]
+                      - img [ref=e92]
+                    - paragraph [ref=e94]: (9)
+              - generic [ref=e96]:
+                - paragraph [ref=e97]: Developer
+                - generic [ref=e98]:
+                  - link "HarvestAPI HarvestAPI" [ref=e99] [cursor=pointer]:
+                    - /url: /harvestapi
+                    - img "HarvestAPI" [ref=e100]
+                    - paragraph [ref=e101]: HarvestAPI
+                  - generic [ref=e104]: Maintained by Community
+              - generic [ref=e106]:
+                - paragraph [ref=e107]: Actor stats
+                - generic [ref=e108]:
+                  - generic [ref=e109]:
+                    - img [ref=e110]
+                    - paragraph [ref=e112]: "137"
+                    - paragraph [ref=e113]: Bookmarked
+                  - generic [ref=e114]:
+                    - img [ref=e115]
+                    - paragraph [ref=e117]: 6.7K
+                    - paragraph [ref=e118]: Total users
+                  - generic [ref=e119]:
+                    - img [ref=e120]
+                    - paragraph [ref=e122]: 1.8K
+                    - paragraph [ref=e123]: Monthly active users
+                  - generic [ref=e124]:
+                    - img [ref=e125]
+                    - paragraph [ref=e128]: 3.9 hours
+                    - paragraph [ref=e129]: Issues response
+                  - generic [ref=e130]:
+                    - img [ref=e131]
+                    - paragraph [ref=e133]: a month ago
+                    - paragraph [ref=e134]: Last modified
+              - generic [ref=e136]:
+                - paragraph [ref=e137]: Categories
+                - generic [ref=e138]:
+                  - link "Automation" [ref=e139] [cursor=pointer]:
+                    - /url: /store/categories/automation
+                    - paragraph [ref=e140]: Automation
+                  - link "Lead generation" [ref=e141] [cursor=pointer]:
+                    - /url: /store/categories/lead-generation
+                    - paragraph [ref=e142]: Lead generation
+                  - link "Open source" [ref=e143] [cursor=pointer]:
+                    - /url: /store/categories/open-source
+                    - paragraph [ref=e144]: Open source
+              - generic [ref=e146]:
+                - paragraph [ref=e147]: Share
+                - generic [ref=e148]:
+                  - img [ref=e149] [cursor=pointer]
+                  - img [ref=e152] [cursor=pointer]
+                  - img [ref=e155] [cursor=pointer]
+            - tablist [ref=e158]:
+              - tab "README" [ref=e159] [cursor=pointer]:
+                - img [ref=e160]
+                - generic [ref=e162]: README
+              - tab "Input" [ref=e163] [cursor=pointer]:
+                - img [ref=e164]
+                - generic [ref=e167]: Input
+              - tab "Pricing" [ref=e168] [cursor=pointer]:
+                - img [ref=e169]
+                - generic [ref=e172]: Pricing
+              - tab "API" [ref=e173] [cursor=pointer]:
+                - img [ref=e174]
+                - generic [ref=e176]: API
+              - tab "Source code" [ref=e177] [cursor=pointer]:
+                - img [ref=e178]
+                - generic [ref=e180]: Source code
+              - tab "Reviews" [ref=e181] [cursor=pointer]:
+                - img [ref=e182]
+                - generic [ref=e184]: Reviews
+              - tab "Issues" [ref=e185] [cursor=pointer]:
+                - img [ref=e186]
+                - generic [ref=e189]: Issues
+            - generic [ref=e191]:
+              - generic [ref=e193]:
+                - heading "LinkedIn Company Details Bulk ScraperCopy link to clipboard" [level=2] [ref=e194]:
+                  - text: LinkedIn Company Details Bulk Scraper
+                  - link "Copy link to clipboard":
+                    - /url: "#linkedin-company-details-bulk-scraper"
+                    - img [ref=e195] [cursor=pointer]
+                - paragraph [ref=e197]: Our powerful tool helps you search and scrape LinkedIn Companies without compromising security or violating platform policies. Extract full company details, including name, logo, employee count, industries, and more. This tool is perfect for businesses looking to gather data on competitors or potential partners.
+                - heading "Key BenefitsCopy link to clipboard" [level=3] [ref=e198]:
+                  - text: Key Benefits
+                  - link "Copy link to clipboard":
+                    - /url: "#key-benefits"
+                    - img [ref=e199] [cursor=pointer]
+                - list [ref=e201]:
+                  - listitem [ref=e202]: "No cookies or account required: Access company data without sharing cookies or risking account restrictions"
+                  - listitem [ref=e203]: "Low pricing: $4 per 1k companies."
+                  - listitem [ref=e204]: Fast response times deliver data in seconds
+                  - listitem [ref=e205]: No caching, fresh data.
+                  - listitem [ref=e206]: "Concurrency: each actor works scraping 6 companies at a time."
+                - heading "How It WorksCopy link to clipboard" [level=2] [ref=e207]:
+                  - text: How It Works
+                  - link "Copy link to clipboard":
+                    - /url: "#how-it-works"
+                    - img [ref=e208] [cursor=pointer]
+                - list [ref=e210]:
+                  - listitem [ref=e211]: Provide List of LinkedIn company URLs or company names. We will find company URL by name via LinkedIn search.
+                - paragraph [ref=e212]:
+                  - text: "Note: For finding multiple companies with advanced filters, please use our"
+                  - link "Linkedin Company Search Scraper" [ref=e213] [cursor=pointer]:
+                    - /url: /harvestapi/linkedin-company-search
+                  - text: Find more Linkedin scraping actors
+                  - link "https://apify.com/harvestapi" [ref=e214] [cursor=pointer]:
+                    - /url: /harvestapi
+                - heading "Data You'll ReceiveCopy link to clipboard" [level=3] [ref=e215]:
+                  - text: Data You'll Receive
+                  - link "Copy link to clipboard":
+                    - /url: "#data-youll-receive"
+                    - img [ref=e216] [cursor=pointer]
+                - paragraph [ref=e218]: "Here is the example company output of this actor:"
+                - generic [ref=e220]:
+                  - code [ref=e222]:
+                    - generic [ref=e223]: "{"
+                    - generic [ref=e224]: "\"id\": \"165158\","
+                    - generic [ref=e225]: "\"universalName\": \"netflix\","
+                    - generic [ref=e226]: "\"linkedinUrl\": \"https://www.linkedin.com/company/netflix\","
+                    - generic [ref=e227]: "\"name\": \"Netflix\","
+                    - generic [ref=e228]: "\"tagline\": \"Play, pause, and resume watching anytime and anywhere. \","
+                    - generic [ref=e229]: "\"website\": \"https://jobs.netflix.com?utm_campaign=LIHomePage&utm_source=linkedin\","
+                    - generic [ref=e230]: "\"logo\": \"https://media.licdn.com/dms/image/v2/D4E0BAQGMva5_E8pUjw/company-logo_400_400/company-logo_400_400/0/1736276678240/netflix_logo?e=1752710400&v=beta&t=HKFjg5oKdKCdFjCLrDEg-jGO5rCrj56J5QM-PjdNK20\","
+                    - generic [ref=e231]: "\"foundedOn\": {"
+                    - generic [ref=e232]: "\"year\": 1997"
+                    - generic [ref=e233]: "},"
+                    - generic [ref=e234]: "\"employeeCount\": 16985,"
+                    - generic [ref=e235]: "\"employeeCountRange\": {"
+                    - generic [ref=e236]: "\"start\": 10001"
+                    - generic [ref=e237]: "},"
+                    - generic [ref=e238]: "\"followerCount\": 10899841,"
+                    - generic [ref=e239]: "\"description\": \"Netflix is one of the world's leading entertainment services, with over 300 million paid memberships in over 190 countries enjoying TV series, films and games across a wide variety of genres and languages. Members can play, pause and resume watching as much as they want, anytime, anywhere, and can change their plans at any time.\","
+                    - generic [ref=e240]: "\"companyType\": \"Public Company\","
+                    - generic [ref=e241]: "\"locations\": ["
+                    - generic [ref=e242]: "{"
+                    - generic [ref=e243]: "\"country\": \"US\","
+                    - generic [ref=e244]: "\"geographicArea\": \"CA\","
+                    - generic [ref=e245]: "\"city\": \"Los Gatos\","
+                    - generic [ref=e246]: "\"line1\": \"100 Winchester Circle\","
+                    - generic [ref=e247]: "\"headquarter\": true,"
+                    - generic [ref=e248]: "\"description\": \"Headquarters\","
+                    - generic [ref=e249]: "\"parsed\": {"
+                    - generic [ref=e250]: "\"text\": \"Los Gatos, CA, United States\","
+                    - generic [ref=e251]: "\"countryCode\": \"US\","
+                    - generic [ref=e252]: "\"regionCode\": null,"
+                    - generic [ref=e253]: "\"country\": \"United States\","
+                    - generic [ref=e254]: "\"countryFull\": \"United States of America\","
+                    - generic [ref=e255]: "\"state\": \"California\","
+                    - generic [ref=e256]: "\"city\": \"Los Gatos\""
+                    - generic [ref=e257]: "}"
+                    - generic [ref=e258]: "},"
+                    - generic [ref=e259]: "{"
+                    - generic [ref=e260]: "\"country\": \"US\","
+                    - generic [ref=e261]: "\"geographicArea\": \"CA\","
+                    - generic [ref=e262]: "\"city\": \"Los Angeles\","
+                    - generic [ref=e263]: "\"line1\": \"5808 W Sunset Blvd\","
+                    - generic [ref=e264]: "\"postalCode\": \"90028\","
+                    - generic [ref=e265]: "\"headquarter\": false,"
+                    - generic [ref=e266]: "\"description\": \"Los Angeles\","
+                    - generic [ref=e267]: "\"parsed\": {"
+                    - generic [ref=e268]: "\"text\": \"Los Angeles, CA, United States\","
+                    - generic [ref=e269]: "\"countryCode\": \"US\","
+                    - generic [ref=e270]: "\"regionCode\": null,"
+                    - generic [ref=e271]: "\"country\": \"United States\","
+                    - generic [ref=e272]: "\"countryFull\": \"United States of America\","
+                    - generic [ref=e273]: "\"state\": \"California\","
+                    - generic [ref=e274]: "\"city\": \"Los Angeles\""
+                    - generic [ref=e275]: "}"
+                    - generic [ref=e276]: "},"
+                    - generic [ref=e277]: "{"
+                    - generic [ref=e278]: "\"country\": \"BR\","
+                    - generic [ref=e279]: "\"geographicArea\": \"SP\","
+                    - generic [ref=e280]: "\"city\": \"Barueri\","
+                    - generic [ref=e281]: "\"line1\": \"Alameda Xingu, 350\","
+                    - generic [ref=e282]: "\"postalCode\": \"06455-030\","
+                    - generic [ref=e283]: "\"headquarter\": false,"
+                    - generic [ref=e284]: "\"description\": \"Sao Paulo \","
+                    - generic [ref=e285]: "\"parsed\": {"
+                    - generic [ref=e286]: "\"text\": \"Barueri, Brazil\","
+                    - generic [ref=e287]: "\"countryCode\": \"BR\","
+                    - generic [ref=e288]: "\"regionCode\": null,"
+                    - generic [ref=e289]: "\"country\": \"Brazil\","
+                    - generic [ref=e290]: "\"countryFull\": \"Brazil\","
+                    - generic [ref=e291]: "\"state\": \"São Paulo\","
+                    - generic [ref=e292]: "\"city\": \"Barueri\""
+                    - generic [ref=e293]: "}"
+                    - generic [ref=e294]: "},"
+                    - generic [ref=e295]: "{"
+                    - generic [ref=e296]: "\"country\": \"US\","
+                    - generic [ref=e297]: "\"city\": \"New York\","
+                    - generic [ref=e298]: "\"line1\": \"245 W 17th St\","
+                    - generic [ref=e299]: "\"postalCode\": \"10011\","
+                    - generic [ref=e300]: "\"headquarter\": false,"
+                    - generic [ref=e301]: "\"description\": \"New York City\","
+                    - generic [ref=e302]: "\"parsed\": {"
+                    - generic [ref=e303]: "\"text\": \"New York City, NY, United States\","
+                    - generic [ref=e304]: "\"countryCode\": \"US\","
+                    - generic [ref=e305]: "\"regionCode\": null,"
+                    - generic [ref=e306]: "\"country\": \"United States\","
+                    - generic [ref=e307]: "\"countryFull\": \"United States of America\","
+                    - generic [ref=e308]: "\"state\": \"New York\","
+                    - generic [ref=e309]: "\"city\": \"New York City\""
+                    - generic [ref=e310]: "}"
+                    - generic [ref=e311]: "},"
+                    - generic [ref=e312]: "{"
+                    - generic [ref=e313]: "\"country\": \"NL\","
+                    - generic [ref=e314]: "\"geographicArea\": \"North Holland\","
+                    - generic [ref=e315]: "\"city\": \"Amsterdam\","
+                    - generic [ref=e316]: "\"line1\": \"Stadhouderskade 55\","
+                    - generic [ref=e317]: "\"postalCode\": \"1072 AB\","
+                    - generic [ref=e318]: "\"headquarter\": false,"
+                    - generic [ref=e319]: "\"description\": \"Amsterdam\","
+                    - generic [ref=e320]: "\"parsed\": {"
+                    - generic [ref=e321]: "\"text\": \"Amsterdam, Netherlands\","
+                    - generic [ref=e322]: "\"countryCode\": \"NL\","
+                    - generic [ref=e323]: "\"regionCode\": null,"
+                    - generic [ref=e324]: "\"country\": \"Netherlands\","
+                    - generic [ref=e325]: "\"countryFull\": \"Netherlands\","
+                    - generic [ref=e326]: "\"state\": \"North Holland\","
+                    - generic [ref=e327]: "\"city\": \"Amsterdam\""
+                    - generic [ref=e328]: "}"
+                    - generic [ref=e329]: "},"
+                    - generic [ref=e330]: "{"
+                    - generic [ref=e331]: "\"country\": \"SG\","
+                    - generic [ref=e332]: "\"city\": \"Marina South\","
+                    - generic [ref=e333]: "\"line1\": \"9 Straits Vw\","
+                    - generic [ref=e334]: "\"postalCode\": \"01\","
+                    - generic [ref=e335]: "\"headquarter\": false,"
+                    - generic [ref=e336]: "\"description\": \"Singapore\","
+                    - generic [ref=e337]: "\"parsed\": {"
+                    - generic [ref=e338]: "\"text\": \"Singapore\","
+                    - generic [ref=e339]: "\"countryCode\": \"SG\","
+                    - generic [ref=e340]: "\"regionCode\": null,"
+                    - generic [ref=e341]: "\"country\": \"Singapore\","
+                    - generic [ref=e342]: "\"countryFull\": \"Singapore\""
+                    - generic [ref=e343]: "}"
+                    - generic [ref=e344]: "},"
+                    - generic [ref=e345]: "{"
+                    - generic [ref=e346]: "\"country\": \"MX\","
+                    - generic [ref=e347]: "\"geographicArea\": \"Cuauhtémoc\","
+                    - generic [ref=e348]: "\"city\": \"Mexico City\","
+                    - generic [ref=e349]: "\"line1\": \"Av. Paseo de la Reforma 483\","
+                    - generic [ref=e350]: "\"line2\": \"Torre Reforma, Floor 37\","
+                    - generic [ref=e351]: "\"postalCode\": \"06500\","
+                    - generic [ref=e352]: "\"headquarter\": false,"
+                    - generic [ref=e353]: "\"parsed\": {"
+                    - generic [ref=e354]: "\"text\": \"Mexico City, Mexico\","
+                    - generic [ref=e355]: "\"countryCode\": \"MX\","
+                    - generic [ref=e356]: "\"regionCode\": null,"
+                    - generic [ref=e357]: "\"country\": \"Mexico\","
+                    - generic [ref=e358]: "\"countryFull\": \"Mexico\","
+                    - generic [ref=e359]: "\"state\": \"Ciudad de México\","
+                    - generic [ref=e360]: "\"city\": \"Mexico City\""
+                    - generic [ref=e361]: "}"
+                    - generic [ref=e362]: "}"
+                    - generic [ref=e363]: "],"
+                    - generic [ref=e364]: "\"specialities\": [\"Revolutionizing the way people watch TV shows and movies!\"],"
+                    - generic [ref=e365]: "\"industries\": [\"Entertainment Providers\"],"
+                    - generic [ref=e366]: "\"logos\": ["
+                    - generic [ref=e367]: "{"
+                    - generic [ref=e368]: "\"url\": \"https://media.licdn.com/dms/image/v2/D4E0BAQGMva5_E8pUjw/company-logo_400_400/company-logo_400_400/0/1736276678240/netflix_logo?e=1752710400&v=beta&t=HKFjg5oKdKCdFjCLrDEg-jGO5rCrj56J5QM-PjdNK20\","
+                    - generic [ref=e369]: "\"width\": 400,"
+                    - generic [ref=e370]: "\"height\": 400,"
+                    - generic [ref=e371]: "\"expiresAt\": 1752710400000"
+                    - generic [ref=e372]: "},"
+                    - generic [ref=e373]: "{"
+                    - generic [ref=e374]: "\"url\": \"https://media.licdn.com/dms/image/v2/D4E0BAQGMva5_E8pUjw/company-logo_200_200/company-logo_200_200/0/1736276678240/netflix_logo?e=1752710400&v=beta&t=7axF3URweM3O6u6N0ZxnzcHLKcAoEK3uOtoabdq8wNg\","
+                    - generic [ref=e375]: "\"width\": 200,"
+                    - generic [ref=e376]: "\"height\": 200,"
+                    - generic [ref=e377]: "\"expiresAt\": 1752710400000"
+                    - generic [ref=e378]: "},"
+                    - generic [ref=e379]: "{"
+                    - generic [ref=e380]: "\"url\": \"https://media.licdn.com/dms/image/v2/D4E0BAQGMva5_E8pUjw/company-logo_100_100/company-logo_100_100/0/1736276678240/netflix_logo?e=1752710400&v=beta&t=GIwyMdkZH5pYo2fMeEWP3xueVMBgyqhH-6DHGvwV_GI\","
+                    - generic [ref=e381]: "\"width\": 100,"
+                    - generic [ref=e382]: "\"height\": 100,"
+                    - generic [ref=e383]: "\"expiresAt\": 1752710400000"
+                    - generic [ref=e384]: "}"
+                    - generic [ref=e385]: "],"
+                    - generic [ref=e386]: "\"backgroundCovers\": ["
+                    - generic [ref=e387]: "{"
+                    - generic [ref=e388]: "\"url\": \"https://media.licdn.com/dms/image/v2/D4E3DAQEKmQHFFvC4Fw/image-scale_191_1128/image-scale_191_1128/0/1736891212728/netflix_cover?e=1747944000&v=beta&t=Vieuyq2jUxjQ7qPzevLX0MDmnmw0SeXleAHEE6TK_wk\","
+                    - generic [ref=e389]: "\"width\": 1128,"
+                    - generic [ref=e390]: "\"height\": 191,"
+                    - generic [ref=e391]: "\"expiresAt\": 1747944000000"
+                    - generic [ref=e392]: "},"
+                    - generic [ref=e393]: "{"
+                    - generic [ref=e394]: "\"url\": \"https://media.licdn.com/dms/image/v2/D4E3DAQEKmQHFFvC4Fw/image-scale_127_750/image-scale_127_750/0/1736891212679/netflix_cover?e=1747944000&v=beta&t=qX9GumINAirVFgcF6orNCsWdlz0JTH4EBesi0FFJpl4\","
+                    - generic [ref=e395]: "\"width\": 749,"
+                    - generic [ref=e396]: "\"height\": 127,"
+                    - generic [ref=e397]: "\"expiresAt\": 1747944000000"
+                    - generic [ref=e398]: "},"
+                    - generic [ref=e399]: "{"
+                    - generic [ref=e400]: "\"url\": \"https://media.licdn.com/dms/image/v2/D4E3DAQEKmQHFFvC4Fw/image-scale_108_640/image-scale_108_640/0/1736891212679/netflix_cover?e=1747944000&v=beta&t=54IJeicLdWD8ZxR3tfv5zEdgSfYBYMJybY1kvHjKc84\","
+                    - generic [ref=e401]: "\"width\": 108,"
+                    - generic [ref=e402]: "\"height\": 18,"
+                    - generic [ref=e403]: "\"expiresAt\": 1747944000000"
+                    - generic [ref=e404]: "}"
+                    - generic [ref=e405]: "],"
+                    - generic [ref=e406]: "\"phone\": null,"
+                    - generic [ref=e407]: "\"fundingData\": {"
+                    - generic [ref=e408]: "\"fundingRoundListCrunchbaseUrl\": \"https://www.crunchbase.com/organization/netflix/funding_rounds/funding_rounds_list?utm_source=linkedin&utm_medium=referral&utm_campaign=linkedin_companies&utm_content=all_fundings\","
+                    - generic [ref=e409]: "\"lastFundingRound\": {"
+                    - generic [ref=e410]: "\"investorsCrunchbaseUrl\": \"https://www.crunchbase.com/funding_round/netflix-post-ipo-debt--63ddc6b4?utm_source=linkedin&utm_medium=referral&utm_campaign=linkedin_companies&utm_content=all_investors\","
+                    - generic [ref=e411]: "\"leadInvestors\": [],"
+                    - generic [ref=e412]: "\"fundingRoundCrunchbaseUrl\": \"https://www.crunchbase.com/funding_round/netflix-post-ipo-debt--63ddc6b4?utm_source=linkedin&utm_medium=referral&utm_campaign=linkedin_companies&utm_content=last_funding\","
+                    - generic [ref=e413]: "\"fundingType\": \"POST_IPO_DEBT\","
+                    - generic [ref=e414]: "\"moneyRaised\": {"
+                    - generic [ref=e415]: "\"currencyCode\": \"USD\","
+                    - generic [ref=e416]: "\"amount\": \"1800000000\""
+                    - generic [ref=e417]: "},"
+                    - generic [ref=e418]: "\"numOtherInvestors\": 0,"
+                    - generic [ref=e419]: "\"announcedOn\": {"
+                    - generic [ref=e420]: "\"month\": 8,"
+                    - generic [ref=e421]: "\"day\": 1,"
+                    - generic [ref=e422]: "\"year\": 2024"
+                    - generic [ref=e423]: "}"
+                    - generic [ref=e424]: "},"
+                    - generic [ref=e425]: "\"companyCrunchbaseUrl\": \"https://www.crunchbase.com/organization/netflix?utm_source=linkedin&utm_medium=referral&utm_campaign=linkedin_companies&utm_content=profile_cta\","
+                    - generic [ref=e426]: "\"numFundingRounds\": 15,"
+                    - generic [ref=e427]: "\"updatedAt\": 1723460925"
+                    - generic [ref=e428]: "}"
+                    - generic [ref=e429]: "}"
+                  - button "Copy to clipboard" [ref=e431] [cursor=pointer]:
+                    - img [ref=e432]
+                - heading "Linkedin Company Data APICopy link to clipboard" [level=2] [ref=e435]:
+                  - text: Linkedin Company Data API
+                  - link "Copy link to clipboard":
+                    - /url: "#linkedin-company-data-api"
+                    - img [ref=e436] [cursor=pointer]
+                - paragraph [ref=e438]: The actor stores results in a dataset. You can export data in various formats such as CSV, JSON, XLS, etc. You can scrape and access data on demand using API.
+                - heading "Support and FeedbackCopy link to clipboard" [level=3] [ref=e439]:
+                  - text: Support and Feedback
+                  - link "Copy link to clipboard":
+                    - /url: "#support-and-feedback"
+                    - img [ref=e440] [cursor=pointer]
+                - paragraph [ref=e442]: "We continuously enhance our tools based on user feedback. If you encounter technical issues or have suggestions for improvement:"
+                - list [ref=e443]:
+                  - listitem [ref=e444]: Create an issue on the actor’s Issues tab in Apify Console
+                  - listitem [ref=e445]:
+                    - text: Or contact us at
+                    - link "contact@harvest-api.com" [ref=e446] [cursor=pointer]:
+                      - /url: mailto:contact@harvest-api.com
+                - paragraph [ref=e447]:
+                  - strong [ref=e448]: "* * *"
+                - paragraph [ref=e449]:
+                  - strong [ref=e450]: Disclaimer
+                  - text: ": This Actor is an independent tool and is not affiliated with, endorsed by, or sponsored by LinkedIn Corporation. LinkedIn® is a registered trademark of LinkedIn Corporation. All trademarks are property of their respective owners."
+              - list [ref=e454]:
+                - listitem [ref=e455]:
+                  - list [ref=e457]:
+                    - listitem [ref=e458]
+                - listitem [ref=e460]:
+                  - list [ref=e462]:
+                    - listitem [ref=e463]
+                - listitem [ref=e465]:
+                  - list [ref=e467]:
+                    - listitem [ref=e468]
+      - heading "You might also like" [level=2] [ref=e471]
+      - generic [ref=e475]:
+        - link "LinkedIn Company Search Scraper ✅ No Cookies avatar LinkedIn Company Search Scraper ✅ No Cookies harvestapi/linkedin-company-search Search for LinkedIn companies with filters and extract detailed company information. No cookies or account required. Fast and reliable actor User avatar HarvestAPI 2K 5.0" [ref=e477] [cursor=pointer]:
+          - /url: /harvestapi/linkedin-company-search
+          - generic [ref=e478]:
+            - generic [ref=e479]:
+              - img "LinkedIn Company Search Scraper ✅ No Cookies avatar" [ref=e481]
+              - generic [ref=e482]:
+                - heading "LinkedIn Company Search Scraper ✅ No Cookies" [level=3] [ref=e484]
+                - paragraph [ref=e485]: harvestapi/linkedin-company-search
+            - paragraph [ref=e486]: Search for LinkedIn companies with filters and extract detailed company information. No cookies or account required. Fast and reliable actor
+          - generic [ref=e487]:
+            - generic [ref=e488]:
+              - img "User avatar" [ref=e489]
+              - paragraph [ref=e490]: HarvestAPI
+            - generic [ref=e491]:
+              - generic [ref=e492]:
+                - img [ref=e493]
+                - paragraph [ref=e495]: 2K
+              - generic [ref=e497]:
+                - img [ref=e498]
+                - paragraph [ref=e500]: "5.0"
+        - link "🔥Bulk Linkedin Company Profile Scraper (No Cookies) avatar 🔥Bulk Linkedin Company Profile Scraper (No Cookies) dev_fusion/Linkedin-Company-Scraper The LinkedIn Company Scraper Actor efficiently extracts comprehensive company information from LinkedIn, including names, industries, websites, employee counts, and more, without requiring cookies. It simplifies data gathering for market analysis and competitive research. User avatar Dev Fusion 10K 4.6" [ref=e502] [cursor=pointer]:
+          - /url: /dev_fusion/linkedin-company-scraper
+          - generic [ref=e503]:
+            - generic [ref=e504]:
+              - img "🔥Bulk Linkedin Company Profile Scraper (No Cookies) avatar" [ref=e506]
+              - generic [ref=e507]:
+                - heading "🔥Bulk Linkedin Company Profile Scraper (No Cookies)" [level=3] [ref=e509]
+                - paragraph [ref=e510]: dev_fusion/Linkedin-Company-Scraper
+            - paragraph [ref=e511]: The LinkedIn Company Scraper Actor efficiently extracts comprehensive company information from LinkedIn, including names, industries, websites, employee counts, and more, without requiring cookies. It simplifies data gathering for market analysis and competitive research.
+          - generic [ref=e512]:
+            - generic [ref=e513]:
+              - img "User avatar" [ref=e514]
+              - paragraph [ref=e515]: Dev Fusion
+            - generic [ref=e516]:
+              - generic [ref=e517]:
+                - img [ref=e518]
+                - paragraph [ref=e520]: 10K
+              - generic [ref=e522]:
+                - img [ref=e523]
+                - paragraph [ref=e525]: "4.6"
+        - link "LinkedIn Company Employees Scraper ✅ No Cookies 📧 avatar LinkedIn Company Employees Scraper ✅ No Cookies 📧 harvestapi/linkedin-company-employees Extract all LinkedIn Company employees with filters and detailed profile information, including complete work experience, and more. No cookies or account required. This actor can try to find contact emails. User avatar HarvestAPI 11K 4.3" [ref=e527] [cursor=pointer]:
+          - /url: /harvestapi/linkedin-company-employees
+          - generic [ref=e528]:
+            - generic [ref=e529]:
+              - img "LinkedIn Company Employees Scraper ✅ No Cookies 📧 avatar" [ref=e531]
+              - generic [ref=e532]:
+                - heading "LinkedIn Company Employees Scraper ✅ No Cookies 📧" [level=3] [ref=e534]
+                - paragraph [ref=e535]: harvestapi/linkedin-company-employees
+            - paragraph [ref=e536]: Extract all LinkedIn Company employees with filters and detailed profile information, including complete work experience, and more. No cookies or account required. This actor can try to find contact emails.
+          - generic [ref=e537]:
+            - generic [ref=e538]:
+              - img "User avatar" [ref=e539]
+              - paragraph [ref=e540]: HarvestAPI
+            - generic [ref=e541]:
+              - generic [ref=e542]:
+                - img [ref=e543]
+                - paragraph [ref=e545]: 11K
+              - generic [ref=e547]:
+                - img [ref=e548]
+                - paragraph [ref=e550]: "4.3"
+        - link "Linkedin company scraper avatar Linkedin company scraper curious_coder/linkedin-company-scraper This linkedin company extractor program gives you all available information several companies in bulk including name, address, phone numbers, website, employee count, etc User avatar Curious Coder 1.4K" [ref=e552] [cursor=pointer]:
+          - /url: /curious_coder/linkedin-company-scraper
+          - generic [ref=e553]:
+            - generic [ref=e554]:
+              - img "Linkedin company scraper avatar" [ref=e556]
+              - generic [ref=e557]:
+                - heading "Linkedin company scraper" [level=3] [ref=e559]
+                - paragraph [ref=e560]: curious_coder/linkedin-company-scraper
+            - paragraph [ref=e561]: This linkedin company extractor program gives you all available information several companies in bulk including name, address, phone numbers, website, employee count, etc
+          - generic [ref=e562]:
+            - generic [ref=e563]:
+              - img "User avatar" [ref=e564]
+              - paragraph [ref=e565]: Curious Coder
+            - generic [ref=e567]:
+              - img [ref=e568]
+              - paragraph [ref=e570]: 1.4K
+        - 'link "Linkedin company url finder avatar Linkedin company url finder unlimitedleadtestinbox/linkedin-company-url-finder Linkedin company url finder : find company linkedin url from company name User avatar unli 108" [ref=e573] [cursor=pointer]':
+          - /url: /unlimitedleadtestinbox/linkedin-company-url-finder
+          - generic [ref=e574]:
+            - generic [ref=e575]:
+              - img "Linkedin company url finder avatar" [ref=e577]
+              - generic [ref=e578]:
+                - heading "Linkedin company url finder" [level=3] [ref=e580]
+                - paragraph [ref=e581]: unlimitedleadtestinbox/linkedin-company-url-finder
+            - paragraph [ref=e582]: "Linkedin company url finder : find company linkedin url from company name"
+          - generic [ref=e583]:
+            - generic [ref=e584]:
+              - img "User avatar" [ref=e585]
+              - paragraph [ref=e586]: unli
+            - generic [ref=e588]:
+              - img [ref=e589]
+              - paragraph [ref=e591]: "108"
+        - link "LinkedIn Profile Search Scraper No Cookies ✅ Find all people 📧 avatar LinkedIn Profile Search Scraper No Cookies ✅ Find all people 📧 harvestapi/linkedin-profile-search Search for LinkedIn profiles with filters and extract detailed profile information, including work experience, education history, location and more. No cookies or account required. User avatar HarvestAPI 18K 4.4" [ref=e594] [cursor=pointer]:
+          - /url: /harvestapi/linkedin-profile-search
+          - generic [ref=e595]:
+            - generic [ref=e596]:
+              - img "LinkedIn Profile Search Scraper No Cookies ✅ Find all people 📧 avatar" [ref=e598]
+              - generic [ref=e599]:
+                - heading "LinkedIn Profile Search Scraper No Cookies ✅ Find all people 📧" [level=3] [ref=e601]
+                - paragraph [ref=e602]: harvestapi/linkedin-profile-search
+            - paragraph [ref=e603]: Search for LinkedIn profiles with filters and extract detailed profile information, including work experience, education history, location and more. No cookies or account required.
+          - generic [ref=e604]:
+            - generic [ref=e605]:
+              - img "User avatar" [ref=e606]
+              - paragraph [ref=e607]: HarvestAPI
+            - generic [ref=e608]:
+              - generic [ref=e609]:
+                - img [ref=e610]
+                - paragraph [ref=e612]: 18K
+              - generic [ref=e614]:
+                - img [ref=e615]
+                - paragraph [ref=e617]: "4.4"
+        - link "🔥 Linkedin Companies & Profiles Bulk Scraper avatar 🔥 Linkedin Companies & Profiles Bulk Scraper bebity/linkedin-premium-actor Companies & Profiles Linkedin scraper. Get comprehensive profiles of individuals and companies based on your keywords and filters. Unleash the power of data! 🌐🔍 User avatar Bebity 15K 3.0" [ref=e619] [cursor=pointer]:
+          - /url: /bebity/linkedin-premium-actor
+          - generic [ref=e620]:
+            - generic [ref=e621]:
+              - img "🔥 Linkedin Companies & Profiles Bulk Scraper avatar" [ref=e623]
+              - generic [ref=e624]:
+                - heading "🔥 Linkedin Companies & Profiles Bulk Scraper" [level=3] [ref=e626]
+                - paragraph [ref=e627]: bebity/linkedin-premium-actor
+            - paragraph [ref=e628]: Companies & Profiles Linkedin scraper. Get comprehensive profiles of individuals and companies based on your keywords and filters. Unleash the power of data! 🌐🔍
+          - generic [ref=e629]:
+            - generic [ref=e630]:
+              - img "User avatar" [ref=e631]
+              - paragraph [ref=e632]: Bebity
+            - generic [ref=e633]:
+              - generic [ref=e634]:
+                - img [ref=e635]
+                - paragraph [ref=e637]: 15K
+              - generic [ref=e639]:
+                - img [ref=e640]
+                - paragraph [ref=e642]: "3.0"
+        - link "LinkedIn Company URL - Mass Profile Finder avatar LinkedIn Company URL - Mass Profile Finder anchor/LinkedIn-company-url-finder Search for LinkedIn company pages based on a company name. Upload a CSV list of company names, and get their LinkedIn company URLs via API or manual export. Automate with schedules, n8n & others tools. Try for free the best bulk tool to find LinkedIn company URLs ! User avatar Anchor 5.1K 4.4" [ref=e644] [cursor=pointer]:
+          - /url: /anchor/linkedin-company-url-finder
+          - generic [ref=e645]:
+            - generic [ref=e646]:
+              - img "LinkedIn Company URL - Mass Profile Finder avatar" [ref=e648]
+              - generic [ref=e649]:
+                - heading "LinkedIn Company URL - Mass Profile Finder" [level=3] [ref=e651]
+                - paragraph [ref=e652]: anchor/LinkedIn-company-url-finder
+            - paragraph [ref=e653]: Search for LinkedIn company pages based on a company name. Upload a CSV list of company names, and get their LinkedIn company URLs via API or manual export. Automate with schedules, n8n & others tools. Try for free the best bulk tool to find LinkedIn company URLs !
+          - generic [ref=e654]:
+            - generic [ref=e655]:
+              - img "User avatar" [ref=e656]
+              - paragraph [ref=e657]: Anchor
+            - generic [ref=e658]:
+              - generic [ref=e659]:
+                - img [ref=e660]
+                - paragraph [ref=e662]: 5.1K
+              - generic [ref=e664]:
+                - img [ref=e665]
+                - paragraph [ref=e667]: "4.4"
+        - link "Free Linkedin Company Finder - LinkedIn address From Any Site avatar Free Linkedin Company Finder - LinkedIn address From Any Site s-r/free-linkedin-company-finder---linkedin-address-from-any-site Find LinkedIn company pages for any domain name. This powerful actor searches and extracts LinkedIn company URLs for domains, supporting international LinkedIn subdomains and bulk processing. Perfect for sales teams, recruiters, and data enrichment. User avatar SR 808 5.0" [ref=e669] [cursor=pointer]:
+          - /url: /s-r/free-linkedin-company-finder---linkedin-address-from-any-site
+          - generic [ref=e670]:
+            - generic [ref=e671]:
+              - img "Free Linkedin Company Finder - LinkedIn address From Any Site avatar" [ref=e673]
+              - generic [ref=e674]:
+                - heading "Free Linkedin Company Finder - LinkedIn address From Any Site" [level=3] [ref=e676]
+                - paragraph [ref=e677]: s-r/free-linkedin-company-finder---linkedin-address-from-any-site
+            - paragraph [ref=e678]: Find LinkedIn company pages for any domain name. This powerful actor searches and extracts LinkedIn company URLs for domains, supporting international LinkedIn subdomains and bulk processing. Perfect for sales teams, recruiters, and data enrichment.
+          - generic [ref=e679]:
+            - generic [ref=e680]:
+              - img "User avatar" [ref=e681]
+              - paragraph [ref=e682]: SR
+            - generic [ref=e683]:
+              - generic [ref=e684]:
+                - img [ref=e685]
+                - paragraph [ref=e687]: "808"
+              - generic [ref=e689]:
+                - img [ref=e690]
+                - paragraph [ref=e692]: "5.0"
+        - link "LinkedIn Company URL - Mass Finder avatar LinkedIn Company URL - Mass Finder scrapeverse/linkedin-company-url---mass-finder Stop wasting time manually searching for LinkedIn company pages. With LinkedIn Mass Company URL Finder, input your company list and get instant access to their LinkedIn URLs. Automate your search and streamline your workflow today! User avatar ScrapeVerse 427" [ref=e694] [cursor=pointer]:
+          - /url: /scrapeverse/linkedin-company-url---mass-finder
+          - generic [ref=e695]:
+            - generic [ref=e696]:
+              - img "LinkedIn Company URL - Mass Finder avatar" [ref=e698]
+              - generic [ref=e699]:
+                - heading "LinkedIn Company URL - Mass Finder" [level=3] [ref=e701]
+                - paragraph [ref=e702]: scrapeverse/linkedin-company-url---mass-finder
+            - paragraph [ref=e703]: Stop wasting time manually searching for LinkedIn company pages. With LinkedIn Mass Company URL Finder, input your company list and get instant access to their LinkedIn URLs. Automate your search and streamline your workflow today!
+          - generic [ref=e704]:
+            - generic [ref=e705]:
+              - img "User avatar" [ref=e706]
+              - paragraph [ref=e707]: ScrapeVerse
+            - generic [ref=e709]:
+              - img [ref=e710]
+              - paragraph [ref=e712]: "427"
+  - contentinfo [ref=e715]:
+    - generic [ref=e716]:
+      - generic [ref=e717]:
+        - generic [ref=e719]:
+          - heading "Product" [level=3] [ref=e720]:
+            - button "Product" [ref=e721]:
+              - paragraph [ref=e722]: Product
+          - list [ref=e724]:
+            - listitem [ref=e725]:
+              - paragraph [ref=e726]:
+                - link "Apify Store" [ref=e727] [cursor=pointer]:
+                  - /url: /store
+            - listitem [ref=e728]:
+              - paragraph [ref=e729]:
+                - link "Integrations" [ref=e730] [cursor=pointer]:
+                  - /url: /integrations
+            - listitem [ref=e731]:
+              - paragraph [ref=e732]:
+                - link "Proxy" [ref=e733] [cursor=pointer]:
+                  - /url: /proxy
+            - listitem [ref=e734]:
+              - paragraph [ref=e735]:
+                - link "MCP" [ref=e736] [cursor=pointer]:
+                  - /url: https://mcp.apify.com/
+            - listitem [ref=e737]:
+              - paragraph [ref=e738]:
+                - link "Crawlee" [ref=e739] [cursor=pointer]:
+                  - /url: https://crawlee.dev/
+                  - text: Crawlee
+                  - img [ref=e740]
+        - generic [ref=e743]:
+          - heading "Developers" [level=3] [ref=e744]:
+            - button "Developers" [ref=e745]:
+              - paragraph [ref=e746]: Developers
+          - list [ref=e748]:
+            - listitem [ref=e749]:
+              - paragraph [ref=e750]:
+                - link "Documentation" [ref=e751] [cursor=pointer]:
+                  - /url: https://docs.apify.com/
+            - listitem [ref=e752]:
+              - paragraph [ref=e753]:
+                - link "Code templates" [ref=e754] [cursor=pointer]:
+                  - /url: /templates
+            - listitem [ref=e755]:
+              - paragraph [ref=e756]:
+                - link "API reference" [ref=e757] [cursor=pointer]:
+                  - /url: https://docs.apify.com/api
+            - listitem [ref=e758]:
+              - paragraph [ref=e759]:
+                - link "Get paid on Apify" [ref=e760] [cursor=pointer]:
+                  - /url: /partners/actor-developers
+        - generic [ref=e762]:
+          - heading "Consulting" [level=3] [ref=e763]:
+            - button "Consulting" [ref=e764]:
+              - paragraph [ref=e765]: Consulting
+          - list [ref=e767]:
+            - listitem [ref=e768]:
+              - paragraph [ref=e769]:
+                - link "Professional Services" [ref=e770] [cursor=pointer]:
+                  - /url: /professional-services
+            - listitem [ref=e771]:
+              - paragraph [ref=e772]:
+                - link "Apify Partners" [ref=e773] [cursor=pointer]:
+                  - /url: /partners
+        - generic [ref=e775]:
+          - heading "Support" [level=3] [ref=e776]:
+            - button "Support" [ref=e777]:
+              - paragraph [ref=e778]: Support
+          - list [ref=e780]:
+            - listitem [ref=e781]:
+              - paragraph [ref=e782]:
+                - link "Help & Support" [ref=e783] [cursor=pointer]:
+                  - /url: https://help.apify.com/en/
+                  - text: Help & Support
+                  - img [ref=e784]
+            - listitem [ref=e786]:
+              - paragraph [ref=e787]:
+                - link "Submit your ideas" [ref=e788] [cursor=pointer]:
+                  - /url: /ideas
+            - listitem [ref=e789]:
+              - paragraph [ref=e790]:
+                - link "Forum" [ref=e791] [cursor=pointer]:
+                  - /url: https://discord.apify.com/
+        - generic [ref=e793]:
+          - heading "Spotlight" [level=3] [ref=e794]:
+            - button "Spotlight" [ref=e795]:
+              - paragraph [ref=e796]: Spotlight
+          - list [ref=e798]:
+            - listitem [ref=e799]:
+              - paragraph [ref=e800]:
+                - link "APIs" [ref=e801] [cursor=pointer]:
+                  - /url: /api
+            - listitem [ref=e802]:
+              - paragraph [ref=e803]:
+                - link "What is web scraping?" [ref=e804] [cursor=pointer]:
+                  - /url: https://blog.apify.com/what-is-web-scraping/
+            - listitem [ref=e805]:
+              - paragraph [ref=e806]:
+                - link "Best web scraping tools" [ref=e807] [cursor=pointer]:
+                  - /url: https://blog.apify.com/best-web-scraping-tools/
+            - listitem [ref=e808]:
+              - paragraph [ref=e809]:
+                - link "Python web scraping libraries" [ref=e810] [cursor=pointer]:
+                  - /url: https://blog.apify.com/what-are-the-best-python-web-scraping-libraries/
+            - listitem [ref=e811]:
+              - paragraph [ref=e812]:
+                - link "Scrapers" [ref=e813] [cursor=pointer]:
+                  - /url: /scrapers
+        - generic [ref=e815]:
+          - heading "Company" [level=3] [ref=e816]:
+            - button "Company" [ref=e817]:
+              - paragraph [ref=e818]: Company
+          - list [ref=e820]:
+            - listitem [ref=e821]:
+              - paragraph [ref=e822]:
+                - link "About Apify" [ref=e823] [cursor=pointer]:
+                  - /url: /about
+            - listitem [ref=e824]:
+              - paragraph [ref=e825]:
+                - link "Contact us" [ref=e826] [cursor=pointer]:
+                  - /url: /contact
+            - listitem [ref=e827]:
+              - paragraph [ref=e828]:
+                - link "Events" [ref=e829] [cursor=pointer]:
+                  - /url: https://lu.ma/apify
+                  - text: Events
+                  - img [ref=e830]
+            - listitem [ref=e832]:
+              - paragraph [ref=e833]:
+                - link "Blog" [ref=e834] [cursor=pointer]:
+                  - /url: https://blog.apify.com/
+            - listitem [ref=e835]:
+              - paragraph [ref=e836]:
+                - link "Become an affiliate" [ref=e837] [cursor=pointer]:
+                  - /url: /partners/affiliate
+            - listitem [ref=e838]:
+              - paragraph [ref=e839]:
+                - link "Customer stories" [ref=e840] [cursor=pointer]:
+                  - /url: /success-stories
+            - listitem [ref=e841]:
+              - paragraph [ref=e842]:
+                - link "Changelog" [ref=e843] [cursor=pointer]:
+                  - /url: /change-log
+            - listitem [ref=e844]:
+              - paragraph [ref=e845]:
+                - link "Jobs We're hiring!" [ref=e846] [cursor=pointer]:
+                  - /url: /jobs
+                  - text: Jobs
+                  - generic [ref=e847]: We're hiring!
+            - listitem [ref=e848]:
+              - paragraph [ref=e849]:
+                - link "Brand" [ref=e850] [cursor=pointer]:
+                  - /url: /resources/brand
+            - listitem [ref=e851]:
+              - paragraph [ref=e852]:
+                - link "Impressum" [ref=e853] [cursor=pointer]:
+                  - /url: https://docs.apify.com/legal
+                  - text: Impressum
+                  - img [ref=e854]
+      - generic [ref=e856]:
+        - link "Apify" [ref=e857] [cursor=pointer]:
+          - /url: /
+          - img "Apify logo" [ref=e858]
+        - generic [ref=e859]:
+          - paragraph [ref=e860]: Socials
+          - list [ref=e861]:
+            - listitem [ref=e862]:
+              - link "LinkedIn" [ref=e863] [cursor=pointer]:
+                - /url: http://linkedin.com/company/apify/
+                - generic "LinkedIn image" [ref=e864]
+            - listitem [ref=e865]:
+              - link "X" [ref=e866] [cursor=pointer]:
+                - /url: https://x.com/apify
+                - generic "X image" [ref=e867]
+            - listitem [ref=e868]:
+              - link "GitHub" [ref=e869] [cursor=pointer]:
+                - /url: https://github.com/apify
+                - generic "GitHub image" [ref=e870]
+            - listitem [ref=e871]:
+              - link "YouTube" [ref=e872] [cursor=pointer]:
+                - /url: https://www.youtube.com/apify
+                - generic "YouTube image" [ref=e873]
+            - listitem [ref=e874]:
+              - link "Discord" [ref=e875] [cursor=pointer]:
+                - /url: https://discord.com/invite/jyEM2PRvMU
+                - generic "Discord image" [ref=e876]
+            - listitem [ref=e877]:
+              - link "TikTok" [ref=e878] [cursor=pointer]:
+                - /url: https://www.tiktok.com/@apifytech
+                - generic "TikTok image" [ref=e879]
+        - generic [ref=e880]:
+          - paragraph [ref=e881]: Security
+          - list [ref=e882]:
+            - listitem [ref=e883]:
+              - link "GDPR" [ref=e884] [cursor=pointer]:
+                - /url: https://docs.apify.com/legal/gdpr-information
+                - img "GDPR image" [ref=e885]
+            - listitem [ref=e886]:
+              - link "SOC2" [ref=e887] [cursor=pointer]:
+                - /url: https://trust.apify.com/
+                - img "SOC2 image" [ref=e888]
+        - generic [ref=e889]:
+          - paragraph [ref=e890]: Reviews
+          - list [ref=e891]:
+            - listitem:
+              - link "GetApp Apify user reviews":
+                - /url: https://www.getapp.com/business-intelligence-analytics-software/a/apify/
+                - img "GetApp Apify user reviews image"
+            - listitem:
+              - link "Software Advice Apify reviews":
+                - /url: https://www.softwareadvice.com/data-extraction/apify-profile/
+                - img "Software Advice Apify reviews image"
+            - listitem:
+              - link "Capterra Apify user reviews":
+                - /url: https://www.capterra.com/p/150854/Apify/
+                - img "Capterra Apify user reviews image"
+            - listitem:
+              - link "G2 Apify user reviews":
+                - /url: https://www.g2.com/products/apify/reviews
+                - img "G2 Apify user reviews image"
+            - listitem:
+              - link "TrustRadius Apify user reviews":
+                - /url: https://www.trustradius.com/products/apify/reviews
+                - img "TrustRadius Apify user reviews image"
+            - listitem:
+              - link "Crozdesk Apify user reviews":
+                - /url: https://crozdesk.com/software/apify
+                - img "Crozdesk Apify user reviews image"
+    - generic [ref=e893]:
+      - link "Loading status..." [ref=e894] [cursor=pointer]:
+        - /url: https://status.apify.com/
+        - paragraph [ref=e896]: Loading status...
+      - generic [ref=e897]:
+        - paragraph [ref=e898]:
+          - link "Terms of Use" [ref=e899] [cursor=pointer]:
+            - /url: https://docs.apify.com/legal/general-terms-and-conditions
+        - paragraph [ref=e900]:
+          - link "Privacy Policy" [ref=e901] [cursor=pointer]:
+            - /url: https://docs.apify.com/legal/privacy-policy
+        - paragraph [ref=e902]:
+          - link "Cookie Policy" [ref=e903] [cursor=pointer]:
+            - /url: https://docs.apify.com/legal/cookie-policy
+        - button "Cookies" [ref=e905] [cursor=pointer]
+        - paragraph [ref=e906]:
+          - link "© 2026 Apify" [ref=e907] [cursor=pointer]:
+            - /url: https://docs.apify.com/legal

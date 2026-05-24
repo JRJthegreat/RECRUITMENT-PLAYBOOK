@@ -1,14 +1,18 @@
 """
-Phase 1.75: Classify each unique company as direct_employer / agency / job_board
+Phase 1.75: Classify each unique company as direct_employer or a DROP category.
 
 Pipeline:
   1. Read sheet → collect unique companies with job + company description
   2. Send to Azure OpenAI GPT-4.1 → classify
   3. Print report (companies + classification + reasoning)
-  4. On --apply: delete rows where classification ∈ {agency, job_board}
+  4. On --apply: delete rows where classification != direct_employer
 
-Signals: company name, job title, job description text, company description (when present).
-No external search API needed.
+Healthcare-specific DROP categories:
+  - hospital_system: large hospital systems, health systems, academic medical centers
+  - chain: multi-location urgent care or PE-backed practice groups
+  - fqhc_government: FQHCs, VA clinics, federally-funded health centers, government
+  - agency: healthcare staffing firms posting physician jobs to recruit candidates
+  - uncertain: anything ambiguous → DROP (tight quality filter)
 """
 
 import os
@@ -40,6 +44,8 @@ COL_COMPANY_NAME = 10  # K
 COL_COMPANY_DESC = 15  # P
 
 LLM_WORKERS = 8
+
+DROP_CATEGORIES = {"hospital_system", "chain", "fqhc_government", "agency", "uncertain"}
 
 
 # --- Google Sheets ---
@@ -79,25 +85,23 @@ def get_tab_sheet_id(service, spreadsheet_id, tab_name):
 
 # --- LLM classification ---
 
-CLASSIFY_SYSTEM = """You classify US companies that posted HR-related job openings as one of:
+CLASSIFY_SYSTEM = """You classify US healthcare employers that posted clinical job openings (Family Medicine, Nurse Practitioner, Physician Assistant, etc.) into one of these categories:
 
-- direct_employer: an actual employer hiring HR / recruiters / benefits / payroll staff for its own workforce. Any industry (tech, healthcare, manufacturing, retail, non-profit, government, etc.) — if they hire people for themselves, they're a direct_employer.
-- agency: ANY of the following:
-    * Recruitment agency, staffing firm, temp agency, labour supplier
-    * Executive search, search firm, headhunter
-    * PEO (e.g. Insperity, TriNet, ADP TotalSource, Justworks) — they co-employ workers on behalf of clients
-    * RPO (recruitment process outsourcing) provider
-    * Fractional HR / HR-as-a-service / outsourced-HR consultancies (they place HR staff at client firms instead of hiring for themselves)
-    * HR consulting firms where the primary offering is placing / leasing HR talent to other companies
-  Strong agency signals in job descriptions: "on behalf of our client", "our client is seeking", "we are recruiting for a client", "this role is with one of our clients", "we have been retained by".
-  If the company's business model is selling HR / recruiting / staffing services to other businesses, classify as agency — even if they post jobs with their own name.
-- job_board: a job aggregator, career site, or job posting platform (Indeed, ZipRecruiter, LinkedIn, Glassdoor, etc.) — not hiring for themselves.
-- uncertain: insufficient evidence to decide.
+- direct_employer: A small private practice, physician-owned clinic, or small medical group (typically ≤ 10 locations) that is hiring clinical staff for themselves. These are independent practices without large internal HR or talent acquisition departments. Examples: "Lake Shore Family Medicine", "Dr. Rodriguez & Associates", "Westchester Primary Care PLLC", "Capital Women's Health".
 
-Return ONLY valid JSON: {"classification": "direct_employer|agency|job_board|uncertain", "reason": "<one short sentence>"}
+- hospital_system: A hospital, health system, academic medical center, or large regional healthcare organization. Signals: "Medical Center", "Health System", "University Hospital", "Regional Medical", "Children's Hospital", "Memorial Hospital", "Memorial Health", "NYU Langone", "Johns Hopkins", "Kaiser Permanente", "Mount Sinai", "Northwell", "UPMC".
 
-Agency signals in company names: "X Recruiting", "X Recruitment", "X Search", "X Talent", "X Staffing", "X Resources", "X Partners", "X Solutions", "X Consulting Group", "X HR", "Fractional HR X", or a person's full name used as a company name.
-Standalone HR tech SaaS products (BambooHR, Gusto, Rippling, Workday, UKG) are direct_employers — they sell software, not labour.
+- chain: A multi-location, corporate-owned, or private equity-backed healthcare chain. Examples: CityMD, AFC Urgent Care, GoHealth Urgent Care, Carbon Health, One Medical, Oak Street Health, VillageMD, Privia Health, Agilon Health, Optum, MinuteClinic, CVS Health, Walgreens Health, DispatchHealth, Concentra, TeamHealth.
+
+- fqhc_government: A Federally Qualified Health Center (FQHC), community health center with federal funding, VA clinic, Veterans Affairs facility, or any other government-run health facility. Signals: "Community Health Center", "FQHC", "Federally Qualified", "Veterans Affairs", "VA Clinic", "Indian Health Service", "Public Health Service", "Department of Health".
+
+- agency: A healthcare staffing agency, locum tenens agency, or travel nursing company posting physician/NP/PA jobs to recruit candidates onto their own roster (not because a clinic is hiring). Signals: "Staffing", "Locums", "Locum Tenens", "Medical Staffing", "Travel Nursing", "on behalf of our client", "we are placing", company name includes "Staffing" / "Locums" / "Recruiting" / "Healthcare Solutions".
+
+- uncertain: Insufficient evidence to classify confidently.
+
+Return ONLY valid JSON: {"classification": "direct_employer|hospital_system|chain|fqhc_government|agency|uncertain", "reason": "<one short sentence>"}
+
+When in doubt, classify as uncertain — we only want confirmed small private practices.
 """
 
 CLASSIFY_USER_TEMPLATE = """Company name: {company}
@@ -139,9 +143,9 @@ def classify_one(client, company, job_title, job_desc, company_desc):
 # --- Main ---
 
 def main():
-    parser = argparse.ArgumentParser(description="Classify companies as direct employer / agency / job board")
+    parser = argparse.ArgumentParser(description="Classify healthcare employers (private practice vs hospital/chain/agency)")
     parser.add_argument("--sheet_url", required=True)
-    parser.add_argument("--apply", action="store_true", help="Delete agency/job_board rows")
+    parser.add_argument("--apply", action="store_true", help="Delete non-direct_employer rows")
     parser.add_argument("--limit", type=int, default=0, help="Only classify first N companies (debug)")
     args = parser.parse_args()
 
@@ -149,7 +153,7 @@ def main():
     service = get_service()
     tab_sheet_id = get_tab_sheet_id(service, spreadsheet_id, TAB_NAME)
 
-    print("=== Classify Companies: Direct Employer vs Agency / Job Board ===")
+    print("=== Classify Healthcare Companies ===")
     print(f"Sheet: {spreadsheet_id}")
     print(f"Model: {AZURE_DEPLOYMENT}")
     print(f"Mode:  {'APPLY (will delete rows)' if args.apply else 'DRY RUN'}\n")
@@ -205,7 +209,8 @@ def main():
             if i % 20 == 0 or i == len(companies):
                 print(f"  Classified {i}/{len(companies)}")
 
-    by_class = {"direct_employer": [], "agency": [], "job_board": [], "uncertain": []}
+    all_categories = ["direct_employer", "hospital_system", "chain", "fqhc_government", "agency", "uncertain"]
+    by_class = {cat: [] for cat in all_categories}
     for company, result in classifications.items():
         cls = result.get("classification", "uncertain")
         if cls not in by_class:
@@ -213,10 +218,11 @@ def main():
         by_class[cls].append((company, result))
 
     print("\n=== Report ===")
-    for cls in ("direct_employer", "agency", "job_board", "uncertain"):
+    for cls in all_categories:
         items = by_class[cls]
         row_count = sum(len(company_to_rows[c]) for c, _ in items)
-        print(f"\n{cls.upper()}: {len(items)} companies, {row_count} rows")
+        label = "KEEP" if cls == "direct_employer" else "DROP"
+        print(f"\n{cls.upper()} [{label}]: {len(items)} companies, {row_count} rows")
         for company, result in sorted(items, key=lambda x: -len(company_to_rows[x[0]])):
             n = len(company_to_rows[company])
             reason = result.get("reason", "")[:90]
@@ -224,17 +230,17 @@ def main():
             print(f"        → {reason}")
 
     if not args.apply:
-        print("\n[DRY RUN] No changes made. Re-run with --apply to delete agency/job_board rows.")
+        print("\n[DRY RUN] No changes made. Re-run with --apply to delete non-direct_employer rows.")
         return
 
     to_delete = set()
     for company, result in classifications.items():
         cls = result.get("classification", "uncertain")
-        if cls in ("agency", "job_board"):
+        if cls in DROP_CATEGORIES:
             to_delete.update(company_to_rows[company])
 
     if to_delete:
-        print(f"\nDeleting {len(to_delete)} agency/job_board rows (bottom-up)...")
+        print(f"\nDeleting {len(to_delete)} non-direct_employer rows (bottom-up)...")
         delete_list = sorted(to_delete, reverse=True)
         requests_body = [
             {"deleteDimension": {"range": {
@@ -255,6 +261,8 @@ def main():
             spreadsheetId=spreadsheet_id, range=f"{TAB_NAME}!A2:A10000"
         ).execute()
         print(f"\nRows remaining: {len(remaining.get('values', []))}")
+    else:
+        print("\nNo rows to delete.")
 
     print("=== Done ===")
 

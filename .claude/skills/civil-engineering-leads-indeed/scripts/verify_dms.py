@@ -4,9 +4,9 @@ Phase 2.5: Verify DMs actually work at the target company.
 find_dm.py uses Google snippet + regex checks which can't distinguish current
 from past employment. Confirmed false positives (e.g. "Genus Facilities Mgmt"
 matched MD of "Genus Recycling"). This script calls the Apify actor
-`dev_fusion/Linkedin-Profile-Scraper` on every LinkedIn URL in col V, reads
-the profile's CURRENT companyName + companyWebsite, and compares against the
-target row's company name (K) and website (L).
+`supreme_coder/linkedin-profile-scraper` ($3/1k profiles) on every LinkedIn URL
+in col V, reads the profile's CURRENT companyName, and compares against the
+target row's company name.
 
 Mismatches get col T/U/V cleared so find_dm.py can re-query them.
 
@@ -31,7 +31,7 @@ TOKEN_PATH = os.path.join(SCRIPT_DIR, "..", "..", "..", "token.json")
 load_dotenv(ENV_PATH)
 
 APIFY_API_TOKEN = os.getenv("APIFY_API_TOKEN")
-ACTOR_ID = "dev_fusion~Linkedin-Profile-Scraper"
+ACTOR_ID = "supreme_coder~linkedin-profile-scraper"
 SYNC_URL = f"https://api.apify.com/v2/acts/{ACTOR_ID}/run-sync-get-dataset-items"
 
 TAB_NAME = "Leads"
@@ -115,7 +115,7 @@ def run_actor(profile_urls, timeout=300):
         resp = requests.post(
             SYNC_URL,
             params={"token": APIFY_API_TOKEN},
-            json={"profileUrls": profile_urls},
+            json={"urls": [{"url": u} for u in profile_urls]},
             timeout=timeout,
         )
     except requests.RequestException as e:
@@ -240,7 +240,7 @@ def main():
             batch, items = fut.result()
             done += 1
             for item in items or []:
-                url = (item.get("linkedinUrl") or item.get("linkedinPublicUrl") or "").strip()
+                url = (item.get("inputUrl") or "").strip()
                 if not url:
                     continue
                 all_results[url.rstrip("/").lower()] = item
@@ -257,11 +257,12 @@ def main():
             missing.append((sr, company, dm_name, url, "profile not scraped"))
             continue
         scraped_company = (item.get("companyName") or "").strip()
-        scraped_website = (item.get("companyWebsite") or "").strip()
+        scraped_website = ""  # supreme_coder doesn't return company website; name matching handles it
         scraped_title = (item.get("jobTitle") or "").strip()
-        full_name = (item.get("fullName") or "").strip()
-        is_employed = item.get("isCurrentlyEmployed")
-        still_working = item.get("jobStillWorking")
+        full_name = f"{item.get('firstName', '')} {item.get('lastName', '')}".strip()
+        positions = item.get("positions") or []
+        is_employed = bool(positions and positions[0].get("timePeriod", {}).get("endDate") is None)
+        still_working = is_employed
 
         ok, mtype, detail = match_employer(company, website, scraped_company, scraped_website)
         if ok:

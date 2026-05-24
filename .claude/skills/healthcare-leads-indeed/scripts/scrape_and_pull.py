@@ -1,17 +1,20 @@
 """
-Phase 1: Orchestrate Apify Indeed scrapes → Google Sheet (US HR).
+Phase 1: Orchestrate Apify Indeed scrapes → Google Sheet (US Healthcare).
 
-Iterates keyword × state grid, calling the `valig/indeed-jobs-scraper` actor
-once per combo. Filters at ingestion (≤ MAX_EMPLOYEES, datePublished within
-no duplicate Job_Ids). Streams rows into the sheet in batches
-of 10 as combos complete.
+Iterates keyword × city grid, calling the `valig/indeed-jobs-scraper` actor
+once per combo. Filters at ingestion (≤ MAX_EMPLOYEES, 30+ days old, no
+duplicate Job_Ids). Streams rows into the sheet in batches of 10 as combos
+complete. Creates a new Google Sheet on first run if --sheet_url is omitted.
 
 Usage:
   python3 -W ignore scrape_and_pull.py --sheet_url "URL" [options]
+  python3 -W ignore scrape_and_pull.py  # creates a new sheet
 
+  --sheet_url "URL"      append to existing sheet (skips creation)
   --limit 100            per-combo item cap (actor max is 1000)
-  --states "A,B,..."     comma-separated override (default US HR grid)
-  --keywords "A,B,..."   comma-separated override (default HR keyword list)
+  --cities "A,B,..."     comma-separated override (default NY + MD grid)
+  --keywords "A,B,..."   comma-separated override (default clinical keywords)
+  --min_days 30          only keep postings ≥ this many days old (0 = all)
   --workers 8            concurrent Apify runs
   --dry_run              print plan only, no Apify calls
   --yes                  skip confirmation prompt
@@ -29,43 +32,48 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from googleapiclient.errors import HttpError
 
 from pull_dataset import (
-    HEADERS, TAB_NAME, MAX_EMPLOYEES, BATCH_SIZE,
+    HEADERS, TAB_NAME, BATCH_SIZE, SHEET_TITLE,
     APIFY_API_TOKEN,
     get_sheet_id_from_url, get_google_service,
-    parse_size_lower_bound, map_to_row,
+    map_to_row, create_sheet, setup_tab,
 )
 
 ACTOR_ID = "valig~indeed-jobs-scraper"
 SYNC_URL = f"https://api.apify.com/v2/acts/{ACTOR_ID}/run-sync-get-dataset-items"
 
-# Fixed HR keyword list — one title per actor run.
 DEFAULT_KEYWORDS = [
-    "HR Manager",
-    "HR Director",
-    "HR Generalist",
-    "Recruiter",
-    "Talent Acquisition",
-    "CHRO",
-    "Benefits Manager",
-    "Benefits Specialist",
-    "Payroll Manager",
+    "Family Medicine Physician",
+    "Family Practice Physician",
+    "Nurse Practitioner",
+    "Physician Assistant",
 ]
 
-# US states — California listed first for priority ordering (workers pool ignores
-# order, but the plan printout surfaces it first).
-DEFAULT_STATES = [
-    "California",
-    "Texas",
-    "New York",
-    "South Carolina",
-    "North Carolina",
-    "Nevada",
-    "Idaho",
-    "Utah",
-    "Ohio",
-    "Tennessee",
-    "Georgia",
-    "Missouri",
+# New York + Maryland cities — 22 cities × 4 keywords = 88 actor runs
+DEFAULT_CITIES = [
+    # New York
+    "New York City, NY",
+    "Brooklyn, NY",
+    "Queens, NY",
+    "Bronx, NY",
+    "Staten Island, NY",
+    "Long Island, NY",
+    "White Plains, NY",
+    "Yonkers, NY",
+    "Buffalo, NY",
+    "Rochester, NY",
+    "Albany, NY",
+    "Syracuse, NY",
+    # Maryland
+    "Baltimore, MD",
+    "Rockville, MD",
+    "Silver Spring, MD",
+    "Bethesda, MD",
+    "Gaithersburg, MD",
+    "Columbia, MD",
+    "Annapolis, MD",
+    "Frederick, MD",
+    "Germantown, MD",
+    "Towson, MD",
 ]
 
 
@@ -107,11 +115,13 @@ def run_actor(keyword, location, limit, timeout=180):
         return []
 
 
-def filter_items(items, existing_job_ids):
-    """Apply size + dedup filters. Returns (rows, stats_dict)."""
+def filter_items(items, existing_job_ids, min_days_old=0):
+    """Dedup filter only. Returns (rows, stats_dict). Size and date filtering is done downstream by classify_companies.py."""
     rows = []
-    stats = {"total": len(items), "no_company": 0, "too_big": 0,
-             "stale": 0, "dupe_existing": 0, "kept": 0}
+    stats = {
+        "total": len(items), "no_company": 0,
+        "dupe_existing": 0, "kept": 0,
+    }
 
     for item in items:
         job_id = item.get("key") or ""
@@ -123,11 +133,6 @@ def filter_items(items, existing_job_ids):
         company_name = (emp.get("name") or "").strip()
         if not company_name:
             stats["no_company"] += 1
-            continue
-
-        size_lower = parse_size_lower_bound(emp.get("employeesCount", ""))
-        if size_lower is not None and size_lower > MAX_EMPLOYEES:
-            stats["too_big"] += 1
             continue
 
         rows.append((job_id, map_to_row(item)))
@@ -188,11 +193,12 @@ def ensure_headers(service, sheet_id):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Scrape Apify Indeed US HR (keyword × state grid) → Google Sheet")
-    parser.add_argument("--sheet_url", required=True)
-    parser.add_argument("--limit", type=int, default=100, help="Per-combo actor item cap (max 1000)")
-    parser.add_argument("--states", default="", help="Comma-separated override")
-    parser.add_argument("--keywords", default="", help="Comma-separated override")
+    parser = argparse.ArgumentParser(description="Scrape Apify Indeed US Healthcare (keyword × city grid) → Google Sheet")
+    parser.add_argument("--sheet_url", default="", help="Existing sheet URL (omit to create new)")
+    parser.add_argument("--limit", type=int, default=1000, help="Per-combo actor item cap (max 1000)")
+    parser.add_argument("--cities", default="", help="Comma-separated city override")
+    parser.add_argument("--keywords", default="", help="Comma-separated keyword override")
+    parser.add_argument("--min_days", type=int, default=30, help="Only keep postings ≥ this many days old (0 = all)")
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--dry_run", action="store_true")
     parser.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
@@ -203,20 +209,26 @@ def main():
         sys.exit(1)
 
     keywords = [k.strip() for k in args.keywords.split(",") if k.strip()] if args.keywords else DEFAULT_KEYWORDS
-    states = [s.strip() for s in args.states.split(",") if s.strip()] if args.states else DEFAULT_STATES
+    cities = [c.strip() for c in args.cities.split(",") if c.strip()] if args.cities else DEFAULT_CITIES
     limit = max(1, min(args.limit, 1000))
 
-    combos = [(k, s) for k in keywords for s in states]
+    combos = [(k, c) for k in keywords for c in cities]
 
-    print("=== Apify Indeed US HR Scrape Orchestrator ===")
+    print("=== Apify Indeed US Healthcare Scrape Orchestrator ===")
     print(f"Actor:     {ACTOR_ID}")
     print(f"Keywords:  {len(keywords)}  {keywords}")
-    print(f"States:    {len(states)}  {states}")
+    print(f"Cities:    {len(cities)}")
+    for c in cities:
+        print(f"           {c}")
     print(f"Combos:    {len(combos)}")
     print(f"Limit:     {limit} per combo  (max items = {len(combos) * limit:,})")
+    print(f"Min days:  {args.min_days} days old (0 = no date filter)")
     print(f"Workers:   {args.workers}")
-    print(f"Max size:  ≤{MAX_EMPLOYEES} employees")
-    print(f"Sheet:     {args.sheet_url}\n")
+    print(f"Max size:  no cap (classify_companies.py handles filtering)")
+    if args.sheet_url:
+        print(f"Sheet:     {args.sheet_url}\n")
+    else:
+        print(f"Sheet:     [new sheet will be created]\n")
 
     if args.dry_run:
         print("[DRY RUN] No Apify calls made.")
@@ -229,8 +241,15 @@ def main():
             return
 
     service = get_google_service()
-    sheet_id = get_sheet_id_from_url(args.sheet_url)
-    ensure_headers(service, sheet_id)
+
+    if args.sheet_url:
+        sheet_id = get_sheet_id_from_url(args.sheet_url)
+        ensure_headers(service, sheet_id)
+    else:
+        print("Creating new Google Sheet...")
+        sheet_id = create_sheet(service, SHEET_TITLE)
+        setup_tab(service, sheet_id)
+        print(f"Sheet URL: https://docs.google.com/spreadsheets/d/{sheet_id}/edit\n")
 
     print("Loading existing Job_Ids...")
     existing_job_ids = load_existing_job_ids(service, sheet_id)
@@ -238,28 +257,29 @@ def main():
 
     seen = set(existing_job_ids)
     pending_batch = []
-    totals = {"runs_ok": 0, "runs_fail": 0, "raw": 0, "no_company": 0,
-              "too_big": 0, "stale": 0, "dupe_existing": 0, "dupe_session": 0,
-              "written": 0}
+    totals = {
+        "runs_ok": 0, "runs_fail": 0, "raw": 0, "no_company": 0,
+        "dupe_existing": 0, "dupe_session": 0, "written": 0,
+    }
     t0 = time.time()
 
-    def work(kw, st):
-        items = run_actor(kw, st, limit)
-        rows, stats = filter_items(items, existing_job_ids)
-        return kw, st, items, rows, stats
+    def work(kw, city):
+        items = run_actor(kw, city, limit)
+        rows, stats = filter_items(items, existing_job_ids, args.min_days)
+        return kw, city, items, rows, stats
 
     print(f"Launching {len(combos)} runs with {args.workers} workers...\n")
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        futures = {pool.submit(work, kw, st): (kw, st) for kw, st in combos}
+        futures = {pool.submit(work, kw, city): (kw, city) for kw, city in combos}
         done_count = 0
         for fut in as_completed(futures):
             done_count += 1
-            kw, st = futures[fut]
+            kw, city = futures[fut]
             try:
-                kw_r, st_r, items, rows, stats = fut.result()
+                kw_r, city_r, items, rows, stats = fut.result()
             except Exception as e:
-                print(f"  [{done_count}/{len(combos)}] {kw} @ {st}: EXC {e}")
+                print(f"  [{done_count}/{len(combos)}] {kw} @ {city}: EXC {e}")
                 totals["runs_fail"] += 1
                 continue
 
@@ -270,8 +290,6 @@ def main():
 
             totals["raw"] += stats["total"]
             totals["no_company"] += stats["no_company"]
-            totals["too_big"] += stats["too_big"]
-            totals["stale"] += stats["stale"]
             totals["dupe_existing"] += stats["dupe_existing"]
 
             session_new = []
@@ -298,7 +316,7 @@ def main():
                 time.sleep(1.2)
 
             elapsed = int(time.time() - t0)
-            print(f"  [{done_count}/{len(combos)}] {kw:22s} @ {st:16s}  "
+            print(f"  [{done_count}/{len(combos)}] {kw:28s} @ {city:22s}  "
                   f"raw={stats['total']:3d}  new={len(session_new):3d}  "
                   f"written={totals['written']:5d}  ({elapsed}s)")
 
@@ -311,16 +329,14 @@ def main():
 
     elapsed = int(time.time() - t0)
     print("\n=== Summary ===")
-    print(f"Runs ok / fail:   {totals['runs_ok']} / {totals['runs_fail']}")
-    print(f"Raw items:        {totals['raw']:,}")
-    print(f"  Skipped no company: {totals['no_company']:,}")
-    print(f"  Skipped >{MAX_EMPLOYEES} emp:   {totals['too_big']:,}")
-    print(f"  Skipped stale:      {totals['stale']:,}")
-    print(f"  Skipped dupe existing: {totals['dupe_existing']:,}")
-    print(f"  Skipped dupe session:  {totals['dupe_session']:,}")
-    print(f"Rows written:     {totals['written']:,}")
-    print(f"Elapsed:          {elapsed}s")
-    print(f"Sheet:            {args.sheet_url}")
+    print(f"Runs ok / fail:        {totals['runs_ok']} / {totals['runs_fail']}")
+    print(f"Raw items:             {totals['raw']:,}")
+    print(f"  Skipped no company:  {totals['no_company']:,}")
+    print(f"  Skipped dupe exist:  {totals['dupe_existing']:,}")
+    print(f"  Skipped dupe sess:   {totals['dupe_session']:,}")
+    print(f"Rows written:          {totals['written']:,}")
+    print(f"Elapsed:               {elapsed}s")
+    print(f"Sheet: https://docs.google.com/spreadsheets/d/{sheet_id}/edit")
 
 
 if __name__ == "__main__":

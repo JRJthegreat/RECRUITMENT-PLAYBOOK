@@ -44,21 +44,21 @@ AMF_DM_URL = "https://api.anymailfinder.com/v5.1/find-email/decision-maker"
 MAX_WORKERS = 20
 BATCH_SIZE = 40
 SHEET_WRITE_DELAY = 0.3
-TAB_NAME = "Leads"
+TAB_NAME = "dataset_healthcare-recruitment-agencies_2026-05-17_13-09-00-863"
 
-# Healthcare sheet layout (same column indices as pull_dataset.py)
-COL_JOB_TITLE = 1         # B
-COL_COMPANY_NAME = 10     # K
-COL_COMPANY_WEBSITE = 11  # L
-COL_COMPANY_SIZE = 12     # M
-COL_DM_NAME = 19          # T
-COL_DM_TITLE = 20         # U
-COL_LINKEDIN_URL = 21     # V
-COL_EMAIL = 22            # W
+# Staffing agency sheet column layout
+COL_JOB_TITLE = 2         # C (company_name — used only for categories_for fallback)
+COL_COMPANY_NAME = 2      # C
+COL_COMPANY_WEBSITE = 11  # L (website)
+COL_COMPANY_SIZE = 13     # N (employee_count)
+COL_DM_NAME = 4           # E (founder_name)
+COL_DM_TITLE = 15         # P (dm_title)
+COL_LINKEDIN_URL = 17     # R (dm_LinkedIn)
+COL_EMAIL = 16            # Q (dm_email)
 
-# Healthcare: practice_manager always maps to hr → operations → ceo
 TIER_TO_CATEGORIES = {
-    "ceo":              ("ceo", "hr", "operations"),
+    "staffing_exec":    ("ceo",),
+    "ceo":              ("ceo",),
     "senior_hr":        ("hr", "operations", "ceo"),
     "practice_manager": ("hr", "operations", "ceo"),
 }
@@ -257,7 +257,7 @@ def main():
     sheet_id = get_sheet_id_from_url(args.sheet_url)
 
     result = service.spreadsheets().values().get(
-        spreadsheetId=sheet_id, range=f"'{TAB_NAME}'!A:AC"
+        spreadsheetId=sheet_id, range=f"'{TAB_NAME}'!A:T"
     ).execute()
     all_rows = result.get("values", [])
     if len(all_rows) < 2:
@@ -292,6 +292,8 @@ def main():
                 "dm_name": dm_name,
                 "company_name": company_name,
                 "company_website": website,
+                "job_title": job_title,
+                "company_size": size,
             })
         elif not dm_name and not args.person_only:
             if not domain:
@@ -345,6 +347,23 @@ def main():
                         updates.append({"range": f"'{TAB_NAME}'!{col_letter(COL_EMAIL)}{sr}", "values": [[r["email"]]]})
                         total_email_found += 1
                     else:
+                        # Fallback: try /decision-maker if person lookup failed and domain exists
+                        domain = extract_domain(r.get("company_website", ""))
+                        if domain:
+                            cats = categories_for(r.get("job_title", ""), r.get("company_size", ""))
+                            fb = find_dm_with_fallback(domain, r["company_name"], *cats)
+                            fb_name = (fb or {}).get("person_name", "")
+                            fb_email = (fb or {}).get("email", "")
+                            if fb_name and fb_email:
+                                print(f"    row {sr}: {r['dm_name']} -> person miss → DM fallback: {fb_name} <{fb_email}>")
+                                updates.append({"range": f"'{TAB_NAME}'!{col_letter(COL_DM_NAME)}{sr}", "values": [[fb_name]]})
+                                if fb.get("person_title"):
+                                    updates.append({"range": f"'{TAB_NAME}'!{col_letter(COL_DM_TITLE)}{sr}", "values": [[fb["person_title"]]]})
+                                if fb.get("person_linkedin"):
+                                    updates.append({"range": f"'{TAB_NAME}'!{col_letter(COL_LINKEDIN_URL)}{sr}", "values": [[fb["person_linkedin"]]]})
+                                updates.append({"range": f"'{TAB_NAME}'!{col_letter(COL_EMAIL)}{sr}", "values": [[fb_email]]})
+                                total_email_found += 1
+                                continue
                         print(f"    row {sr}: {r['dm_name']} -> not_found ({r['status']})")
                         updates.append({"range": f"'{TAB_NAME}'!{col_letter(COL_EMAIL)}{sr}", "values": [["not_found"]]})
                         total_email_miss += 1

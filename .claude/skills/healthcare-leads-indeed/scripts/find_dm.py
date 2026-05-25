@@ -1,10 +1,9 @@
 """
-Phase 2: Find decision makers via Google Search + LinkedIn (Healthcare pipeline).
+Phase 2: Find decision makers via Google Search + LinkedIn (Healthcare staffing pipeline).
 
-DM routing — fixed 3-pass, same for all role types and practice sizes:
-  Pass 1: Practice Manager / Office Manager / Clinic Manager / Practice Administrator
-  Pass 2: Owner / Medical Director / CEO
-  Pass 3: Managing Partner / Partner
+DM routing — single pass, fixed for all firm sizes:
+  CEO / Chief Executive Officer / President / Owner / Co-Owner /
+  Founder / Co-Founder / Managing Partner / Managing Director
 
 For each lead without a DM Name:
 1. Search Google via Apify: '"[Company]" ("[target titles]") site:linkedin.com/in/'
@@ -13,11 +12,7 @@ For each lead without a DM Name:
    markers, company tokens must overlap target, URL must be a real profile.
 4. Write DM Name, DM Title, LinkedIn URL to cols T/U/V.
 
-Three passes max:
-  Pass 1 = practice_manager (primary target)
-  Pass 2 = physician_owner (fallback)
-  Pass 3 = managing_partner (final fallback)
-After Pass 3 misses, the row is left empty for Phase 3 (AMF rescue).
+Rows still missing after this pass are handled by enrich_emails.py (AMF fallback).
 
 Exports determine_target() and is_senior_hr() for enrich_emails.py compatibility.
 """
@@ -48,59 +43,38 @@ BATCH_SIZE = 10
 PARALLEL_BATCHES = 6
 SHEET_WRITE_DELAY = 0.3
 
-# --- Column indices (0-based, matching HEADERS in pull_dataset.py) ---
-COL_JOB_TITLE = 1        # B
-COL_COMPANY_NAME = 10    # K
+# --- Column indices (0-based) — staffing agency sheet layout ---
+COL_COMPANY_NAME = 2     # C
 COL_COMPANY_WEBSITE = 11 # L
-COL_COMPANY_SIZE = 12    # M
-COL_DM_NAME = 19         # T
-COL_DM_TITLE = 20        # U
-COL_LINKEDIN_URL = 21    # V
+COL_DM_NAME = 4          # E (founder_name)
+COL_DM_TITLE = 15        # P (dm_title)
+COL_LINKEDIN_URL = 17    # R (dm_LinkedIn)
+COL_EMAIL = 16           # Q (dm_email)
 
 
 # --- DM tier definitions ---
 
-# Pass 1: Practice Manager / Office Manager
-PASS1_TITLES = [
-    "practice manager", "office manager", "clinic manager",
-    "practice administrator", "medical office manager", "clinic administrator",
+STAFFING_EXEC_TITLES = [
+    "ceo", "chief executive officer", "president",
+    "owner", "co-owner",
+    "founder", "co-founder",
+    "managing partner", "managing director",
 ]
-PASS1_QUERY_TITLES = (
-    '"Practice Manager" OR "Office Manager" OR "Clinic Manager" '
-    'OR "Practice Administrator" OR "Medical Office Manager"'
-)
 
-# Pass 2: Owner / Medical Director / CEO
-PASS2_TITLES = [
-    "owner", "medical director", "ceo", "chief executive officer",
-]
-PASS2_QUERY_TITLES = (
-    '"Owner" OR "Medical Director" OR "CEO" OR "Chief Executive Officer"'
+STAFFING_EXEC_QUERY_TITLES = (
+    '"CEO" OR "Chief Executive Officer" OR "President" OR "Owner" OR "Co-Owner" '
+    'OR "Founder" OR "Co-Founder" OR "Managing Partner" OR "Managing Director"'
 )
-
-# Pass 3: Managing Partner / Partner
-PASS3_TITLES = ["managing partner", "partner"]
-PASS3_QUERY_TITLES = '"Managing Partner" OR "Partner"'
 
 
 def determine_target(job_title, company_size=None):
-    """Always target practice_manager first. Returns (tier, reasoning).
-    Exported for enrich_emails.py compatibility."""
-    return "practice_manager", "Healthcare pipeline: target Practice Manager / Office Manager"
+    """Always target staffing_exec. Exported for enrich_emails.py compatibility."""
+    return "staffing_exec", "Staffing firm: target CEO/President/Owner/Founder/Managing Partner/Managing Director"
 
 
 def is_senior_hr(job_title):
-    """Always returns False — no senior-HR concept in healthcare pipeline.
-    Exported for enrich_emails.py compatibility."""
+    """Always returns False. Exported for enrich_emails.py compatibility."""
     return False
-
-
-def next_tier(target):
-    return {
-        "practice_manager": "physician_owner",
-        "physician_owner": "managing_partner",
-        "managing_partner": None,
-    }.get(target)
 
 
 def _company_clause(company_name, target_domain):
@@ -109,15 +83,9 @@ def _company_clause(company_name, target_domain):
     return f'"{company_name}"'
 
 
-def build_search_query(company_name, target_level, target_domain=""):
+def build_search_query(company_name, target_domain=""):
     co = _company_clause(company_name, target_domain)
-    if target_level == "practice_manager":
-        return f'{co} ({PASS1_QUERY_TITLES}) site:linkedin.com/in/'
-    if target_level == "physician_owner":
-        return f'{co} ({PASS2_QUERY_TITLES}) site:linkedin.com/in/'
-    if target_level == "managing_partner":
-        return f'{co} ({PASS3_QUERY_TITLES}) site:linkedin.com/in/'
-    return f'{co} "Owner" site:linkedin.com/in/'
+    return f'{co} ({STAFFING_EXEC_QUERY_TITLES}) site:linkedin.com/in/'
 
 
 # --- Snippet parsing ---
@@ -172,7 +140,8 @@ NOISE_WORDS = {
     "inc", "llc", "ltd", "corp", "co", "the", "of", "and", "&",
     "a", "an", "for", "in", "at", "by", "group", "services",
     "company", "holdings", "international", "global",
-    "medical", "health", "healthcare", "clinic", "practice", "center",
+    "staffing", "recruiting", "recruitment", "healthcare", "health",
+    "medical", "solutions", "partners", "consulting",
 }
 
 FORMER_PATTERNS = re.compile(
@@ -186,30 +155,17 @@ def name_words(text):
     return [w for w in words if len(w) > 2 and w not in NOISE_WORDS]
 
 
-def title_matches_target(title_text, target_level):
+def title_matches_target(title_text):
     """Title must START with a target keyword to avoid 'Assistant to' false positives."""
     t = (title_text or "").lower().strip()
     if not t:
         return False
-
-    if target_level == "practice_manager":
-        return t.startswith((
-            "practice manager", "office manager", "clinic manager",
-            "practice administrator", "medical office manager", "clinic administrator",
-        ))
-
-    if target_level == "physician_owner":
-        # Medical Director / Practice Owner / Physician / Owner
-        starts = (
-            "practice owner", "physician owner", "medical director",
-            "owner", "physician", "doctor", "dr.",
-        )
-        return t.startswith(starts)
-
-    if target_level == "managing_partner":
-        return t.startswith(("managing partner", "partner"))
-
-    return False
+    return t.startswith((
+        "ceo", "chief executive officer", "president",
+        "owner", "co-owner",
+        "founder", "co-founder",
+        "managing partner", "managing director",
+    ))
 
 
 def company_overlap(snippet_company, target_company):
@@ -262,16 +218,13 @@ def domain_anchor_ok(snippet, target_domain):
 
 
 GENERIC_COMPANY_TOKENS = {
-    "institute", "institutes", "health", "healthcare", "medical", "clinic",
-    "hospital", "hospitals", "center", "centers", "centre", "centres",
-    "services", "service", "solutions", "systems", "global", "international",
-    "national", "american", "consulting", "consultants", "associates",
-    "associated", "industries", "industry", "technologies", "technology",
-    "products", "management", "enterprise", "enterprises", "professional",
-    "school", "schools", "academy", "university", "college", "education",
-    "research", "foundation", "foundations", "network", "partners",
-    "community", "regional", "general", "advanced", "premier", "select",
-    "united", "first", "family", "practice", "care", "group",
+    "staffing", "recruiting", "recruitment", "placement", "healthcare",
+    "health", "medical", "clinical", "services", "service", "solutions",
+    "systems", "global", "international", "national", "consulting",
+    "consultants", "associates", "associated", "industries", "industry",
+    "technologies", "technology", "management", "enterprise", "enterprises",
+    "professional", "network", "partners", "community", "regional",
+    "general", "advanced", "premier", "select", "united", "first", "group",
 }
 
 
@@ -282,14 +235,14 @@ def has_distinctive_token(target_company):
     return False
 
 
-def validate_result(parsed, target_company, target_level, target_domain=""):
+def validate_result(parsed, target_company, target_domain=""):
     if not parsed:
         return False
     if not parsed["name"] or not parsed["title"]:
         return False
     if FORMER_PATTERNS.search(parsed["title"]):
         return False
-    if not title_matches_target(parsed["title"], target_level):
+    if not title_matches_target(parsed["title"]):
         return False
 
     if parsed["company"]:
@@ -323,6 +276,11 @@ def get_sheet_id_from_url(url):
     return url
 
 
+def get_gid_from_url(url):
+    m = re.search(r"gid=(\d+)", url)
+    return int(m.group(1)) if m else None
+
+
 def get_google_service():
     with open(TOKEN_PATH) as f:
         td = json.load(f)
@@ -353,6 +311,19 @@ def cell(row, idx):
     return row[idx].strip() if idx < len(row) and row[idx] else ""
 
 
+def resolve_tab_name(service, sheet_id, tab_arg, url):
+    meta = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+    sheets = meta["sheets"]
+    if tab_arg:
+        return tab_arg
+    gid = get_gid_from_url(url)
+    if gid is not None:
+        for s in sheets:
+            if s["properties"]["sheetId"] == gid:
+                return s["properties"]["title"]
+    return sheets[0]["properties"]["title"]
+
+
 # --- Apify ---
 
 def apify_google_search(queries):
@@ -381,20 +352,18 @@ def apify_google_search(queries):
     return out
 
 
-# --- Pass orchestration ---
+# --- Batch processing ---
 
-def process_batch(leads, target_map, dry_run):
+def process_batch(leads, dry_run):
     queries = []
     query_to_lead = {}
     for lead in leads:
-        target = target_map[lead["sheet_row"]]
-        q = build_search_query(lead["company_name"], target, lead.get("domain", ""))
+        q = build_search_query(lead["company_name"], lead.get("domain", ""))
         queries.append(q)
         query_to_lead[q] = lead
 
     if dry_run:
-        lines = [f"  [DRY] Row {lead['sheet_row']}: {lead['company_name']} → {target_map[lead['sheet_row']]}"
-                 for lead in leads]
+        lines = [f"  [DRY] Row {lead['sheet_row']}: {lead['company_name']}" for lead in leads]
         return [], 0, len(leads), lines
 
     search_results = apify_google_search(queries)
@@ -405,7 +374,6 @@ def process_batch(leads, target_map, dry_run):
     not_found = 0
 
     for q, lead in query_to_lead.items():
-        target = target_map[lead["sheet_row"]]
         organic = search_results.get(q, [])
 
         matched = None
@@ -413,7 +381,7 @@ def process_batch(leads, target_map, dry_run):
             parsed = parse_linkedin_result(r)
             if not parsed:
                 continue
-            if validate_result(parsed, lead["company_name"], target, lead.get("domain", "")):
+            if validate_result(parsed, lead["company_name"], lead.get("domain", "")):
                 matched = parsed
                 break
 
@@ -424,11 +392,13 @@ def process_batch(leads, target_map, dry_run):
                 "result_title": matched["title"],
                 "linkedin_url": matched["url"],
             })
-            log_lines.append(f"    Row {lead['sheet_row']}: {lead['company_name']} → "
-                             f"{matched['name']} ({matched['title']}) [{target}]")
+            log_lines.append(
+                f"    Row {lead['sheet_row']}: {lead['company_name']} → "
+                f"{matched['name']} ({matched['title']})"
+            )
             found += 1
         else:
-            log_lines.append(f"    Row {lead['sheet_row']}: {lead['company_name']} → NOT FOUND [{target}]")
+            log_lines.append(f"    Row {lead['sheet_row']}: {lead['company_name']} → NOT FOUND")
             not_found += 1
 
     return updates, found, not_found, log_lines
@@ -440,21 +410,17 @@ def write_updates(service, sheet_id, tab_name, updates):
     data = []
     for u in updates:
         row = u["sheet_row"]
-        data.append({"range": f"'{tab_name}'!{col_letter(COL_DM_NAME)}{row}",
-                     "values": [[u["person_name"]]]})
-        data.append({"range": f"'{tab_name}'!{col_letter(COL_DM_TITLE)}{row}",
-                     "values": [[u["result_title"]]]})
-        data.append({"range": f"'{tab_name}'!{col_letter(COL_LINKEDIN_URL)}{row}",
-                     "values": [[u["linkedin_url"]]]})
+        data.append({"range": f"'{tab_name}'!{col_letter(COL_DM_NAME)}{row}", "values": [[u["person_name"]]]})
+        data.append({"range": f"'{tab_name}'!{col_letter(COL_DM_TITLE)}{row}", "values": [[u["result_title"]]]})
+        data.append({"range": f"'{tab_name}'!{col_letter(COL_LINKEDIN_URL)}{row}", "values": [[u["linkedin_url"]]]})
     service.spreadsheets().values().batchUpdate(
         spreadsheetId=sheet_id,
         body={"valueInputOption": "RAW", "data": data},
     ).execute()
 
 
-def collect_leads(rows, target, limit):
+def collect_leads(rows, limit):
     leads = []
-    target_map = {}
     for i, row in enumerate(rows):
         if limit > 0 and len(leads) >= limit:
             break
@@ -464,30 +430,63 @@ def collect_leads(rows, target, limit):
         if not company_name:
             continue
         domain = cell(row, COL_COMPANY_WEBSITE)
-        sheet_row = i + 2
         leads.append({
-            "sheet_row": sheet_row,
+            "sheet_row": i + 2,
             "company_name": company_name,
             "domain": domain if "." in domain else "",
         })
-        target_map[sheet_row] = target
-    return leads, target_map
+    return leads
 
 
-def run_pass(service, sheet_id, tab_name, rows, label, target, limit, dry_run):
-    leads, target_map = collect_leads(rows, target, limit)
-    print(f"\n{label}: {len(leads)} leads")
+def main():
+    ap = argparse.ArgumentParser(description="Find DMs via Google + LinkedIn (healthcare staffing: exec titles)")
+    ap.add_argument("--sheet_url", required=True)
+    ap.add_argument("--tab", default="", help="Tab name override (default: match gid from URL, else first tab)")
+    ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--dry_run", action="store_true")
+    args = ap.parse_args()
+
+    if not APIFY_TOKEN:
+        print("ERROR: APIFY_API_TOKEN not set")
+        return
+
+    print("=== Find Decision Makers — Healthcare Staffing (CEO/President/Owner/Founder/Managing Partner/Managing Director) ===\n")
+    service = get_google_service()
+    sheet_id = get_sheet_id_from_url(args.sheet_url)
+
+    tab_name = resolve_tab_name(service, sheet_id, args.tab, args.sheet_url)
+    print(f"Tab: '{tab_name}'")
+
+    result = service.spreadsheets().values().get(
+        spreadsheetId=sheet_id, range=f"'{tab_name}'!A:T"
+    ).execute()
+    all_rows = result.get("values", [])
+    if len(all_rows) < 2:
+        print("No data rows.")
+        return
+    data_rows = all_rows[1:]
+
+    leads = collect_leads(data_rows, args.limit)
+    print(f"\nPass — Staffing Exec: {len(leads)} leads to search")
+
     if not leads:
-        return 0, 0
+        print("Nothing to do.")
+        return
 
     found_total = 0
     not_found_total = 0
     num_batches = (len(leads) + BATCH_SIZE - 1) // BATCH_SIZE
     batches = [leads[b * BATCH_SIZE:(b + 1) * BATCH_SIZE] for b in range(num_batches)]
 
+    if args.dry_run:
+        for lead in leads:
+            q = build_search_query(lead["company_name"], lead.get("domain", ""))
+            print(f"  [DRY] Row {lead['sheet_row']}: {q}")
+        print(f"\n[DRY RUN] Would search {len(leads)} leads across {num_batches} batches")
+        return
+
     with ThreadPoolExecutor(max_workers=PARALLEL_BATCHES) as pool:
-        futs = {pool.submit(process_batch, batch, target_map, dry_run): i
-                for i, batch in enumerate(batches)}
+        futs = {pool.submit(process_batch, batch, False): i for i, batch in enumerate(batches)}
         for fut in as_completed(futs):
             idx = futs[fut]
             try:
@@ -500,82 +499,12 @@ def run_pass(service, sheet_id, tab_name, rows, label, target, limit, dry_run):
                 print(line)
             found_total += found
             not_found_total += not_found
-            if updates and not dry_run:
+            if updates:
                 write_updates(service, sheet_id, tab_name, updates)
                 time.sleep(SHEET_WRITE_DELAY)
-    return found_total, not_found_total
 
-
-def main():
-    ap = argparse.ArgumentParser(description="Find DMs via Google + LinkedIn (healthcare: PM → Owner → Partner)")
-    ap.add_argument("--sheet_url", required=True)
-    ap.add_argument("--limit", type=int, default=0)
-    ap.add_argument("--dry_run", action="store_true")
-    args = ap.parse_args()
-
-    if not APIFY_TOKEN:
-        print("ERROR: APIFY_API_TOKEN not set")
-        return
-
-    print("=== Find Decision Makers — Healthcare (PM → Owner → Partner) ===\n")
-    service = get_google_service()
-    sheet_id = get_sheet_id_from_url(args.sheet_url)
-
-    meta = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-    tab_name = meta["sheets"][0]["properties"]["title"]
-    print(f"Tab: '{tab_name}'")
-
-    result = service.spreadsheets().values().get(
-        spreadsheetId=sheet_id, range=f"'{tab_name}'!A:AA"
-    ).execute()
-    all_rows = result.get("values", [])
-    if len(all_rows) < 2:
-        print("No data rows.")
-        return
-    data_rows = all_rows[1:]
-
-    f1, nf1 = run_pass(
-        service, sheet_id, tab_name, data_rows,
-        "Pass 1 — Practice Manager / Office Manager",
-        "practice_manager", limit=args.limit, dry_run=args.dry_run,
-    )
-
-    if args.dry_run:
-        print(f"\n[DRY RUN] Would search {f1 + nf1} leads")
-        return
-
-    print(f"\nPass 1: {f1} found, {nf1} missed")
-
-    if nf1 > 0:
-        result = service.spreadsheets().values().get(
-            spreadsheetId=sheet_id, range=f"'{tab_name}'!A:AA"
-        ).execute()
-        data_rows = result.get("values", [])[1:]
-
-        f2, nf2 = run_pass(
-            service, sheet_id, tab_name, data_rows,
-            "Pass 2 — Practice Owner / Physician Owner / Medical Director",
-            "physician_owner", limit=args.limit, dry_run=False,
-        )
-        print(f"\nPass 2: {f2} found, {nf2} missed")
-
-        if nf2 > 0:
-            result = service.spreadsheets().values().get(
-                spreadsheetId=sheet_id, range=f"'{tab_name}'!A:AA"
-            ).execute()
-            data_rows = result.get("values", [])[1:]
-
-            f3, nf3 = run_pass(
-                service, sheet_id, tab_name, data_rows,
-                "Pass 3 — Managing Partner / Partner",
-                "managing_partner", limit=args.limit, dry_run=False,
-            )
-            print(f"\nPass 3: {f3} found, {nf3} still missed (Phase 3 AMF rescue)")
-            print(f"\nTotal: {f1 + f2 + f3} found, {nf3} unfound")
-        else:
-            print(f"\nTotal: {f1 + f2} found, 0 unfound")
-
-    print(f"\nSheet: https://docs.google.com/spreadsheets/d/{sheet_id}/edit")
+    print(f"\nDone: {found_total} found, {not_found_total} missed → run enrich_emails.py for AMF fallback")
+    print(f"Sheet: https://docs.google.com/spreadsheets/d/{sheet_id}/edit")
 
 
 if __name__ == "__main__":

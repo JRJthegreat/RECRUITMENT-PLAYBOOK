@@ -1,0 +1,2 @@
+[    4735ms] [LOG] JQMIGRATE: Migrate is installed with logging active, version 3.4.0 @ https://a.slack-edge.com/bv1-13-br/rollup-marketing.b44410f40290a5132be2.marketing.min.js:75
+[    5275ms] [WARNING] Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://www.youtube-nocookie.com') does not match the recipient window's origin ('https://slack.com'). @ https://www.youtube.com/s/player/c2f7551f/www-widgetapi.vflset/www-widgetapi.js:209

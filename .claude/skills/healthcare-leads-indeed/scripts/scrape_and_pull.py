@@ -196,7 +196,7 @@ def main():
     parser = argparse.ArgumentParser(description="Scrape Apify Indeed US Healthcare (keyword × city grid) → Google Sheet")
     parser.add_argument("--sheet_url", default="", help="Existing sheet URL (omit to create new)")
     parser.add_argument("--limit", type=int, default=1000, help="Per-combo actor item cap (max 1000)")
-    parser.add_argument("--cities", default="", help="Comma-separated city override")
+    parser.add_argument("--cities", default="", help="Semicolon-separated city override (city names may contain commas e.g. 'Houston, TX;Dallas, TX')")
     parser.add_argument("--keywords", default="", help="Comma-separated keyword override")
     parser.add_argument("--min_days", type=int, default=30, help="Only keep postings ≥ this many days old (0 = all)")
     parser.add_argument("--workers", type=int, default=8)
@@ -209,7 +209,7 @@ def main():
         sys.exit(1)
 
     keywords = [k.strip() for k in args.keywords.split(",") if k.strip()] if args.keywords else DEFAULT_KEYWORDS
-    cities = [c.strip() for c in args.cities.split(",") if c.strip()] if args.cities else DEFAULT_CITIES
+    cities = [c.strip() for c in args.cities.split(";") if c.strip()] if args.cities else DEFAULT_CITIES
     limit = max(1, min(args.limit, 1000))
 
     combos = [(k, c) for k in keywords for c in cities]

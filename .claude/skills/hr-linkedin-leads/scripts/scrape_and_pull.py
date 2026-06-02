@@ -1,74 +1,48 @@
 """
-Phase 1: Orchestrate Apify Indeed scrapes → Google Sheet (US HR).
+Phase 1: Orchestrate LinkedIn scrapes → Google Sheet (US HR specialist roles).
 
-Iterates keyword × state grid, calling the `valig/indeed-jobs-scraper` actor
-once per combo. Filters at ingestion (≤ MAX_EMPLOYEES, datePublished within
-[min_days, max_days] window, no duplicate Job_Ids). Streams rows into the
-sheet in batches of 10 as combos complete.
+Iterates keyword × location grid using insight_api_labs~linkedin-jobs-scraper.
+Filters at ingestion: datePublished within [min_days, max_days] window, no
+duplicate Job_Ids, missing company name. Company size is NOT filtered here
+(not available from LinkedIn actor) — run find_company_sizes.py after ingest.
 
 Usage:
   python3 -W ignore scrape_and_pull.py --sheet_url "URL" [options]
 
-  --limit 100            per-combo item cap (actor max is 1000)
+  --limit 50             per-combo item cap (default 50)
   --min_days 30          minimum posting age in days (default 30)
-  --max_days 60          maximum posting age in days (default 60)
-  --states "A,B,..."     comma-separated override (default US HR grid)
-  --keywords "A,B,..."   comma-separated override (default HR keyword list)
-  --workers 8            concurrent Apify runs
+  --max_days 45          maximum posting age in days (default 45)
+  --locations "A,B,..."  comma-separated override
+  --keywords "A,B,..."   comma-separated override
+  --workers 5            concurrent Apify runs (default 5 — actor is slow)
   --dry_run              print plan only, no Apify calls
   --yes                  skip confirmation prompt
 
 Resume safety: existing Job_Ids in the sheet are loaded first; matching items
-returned by the actor are skipped (no duplicate rows).
+are skipped (no duplicate rows).
 """
 
 import sys
 import time
 import argparse
 import requests
-from datetime import date
+from datetime import date, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from googleapiclient.errors import HttpError
 
 from pull_dataset import (
-    HEADERS, TAB_NAME, MAX_EMPLOYEES, BATCH_SIZE,
+    HEADERS, TAB_NAME, BATCH_SIZE,
     APIFY_API_TOKEN,
     get_sheet_id_from_url, get_google_service,
-    parse_size_lower_bound, map_to_row,
+    map_to_row,
 )
 
-ACTOR_ID = "valig~indeed-jobs-scraper"
-SYNC_URL = f"https://api.apify.com/v2/acts/{ACTOR_ID}/run-sync-get-dataset-items"
+ACTOR_ID = "insight_api_labs~linkedin-jobs-scraper"
+RUN_URL = f"https://api.apify.com/v2/acts/{ACTOR_ID}/runs"
+DATASET_URL = "https://api.apify.com/v2/datasets/{dataset_id}/items"
 
-# Fixed HR keyword list — one title per actor run.
-DEFAULT_KEYWORDS = [
-    "HR Manager",
-    "HR Director",
-    "HR Generalist",
-    "Recruiter",
-    "Talent Acquisition",
-    "CHRO",
-    "Benefits Manager",
-    "Benefits Specialist",
-    "Payroll Manager",
-]
-
-# US states — California listed first for priority ordering (workers pool ignores
-# order, but the plan printout surfaces it first).
-DEFAULT_STATES = [
-    "California",
-    "Texas",
-    "New York",
-    "South Carolina",
-    "North Carolina",
-    "Nevada",
-    "Idaho",
-    "Utah",
-    "Ohio",
-    "Tennessee",
-    "Georgia",
-    "Missouri",
-]
+DEFAULT_KEYWORDS = []   # Always specify via --keywords
+DEFAULT_LOCATIONS = []  # Always specify via --locations
 
 
 def parse_iso_date(s):
@@ -80,66 +54,96 @@ def parse_iso_date(s):
         return None
 
 
-def run_actor(keyword, location, limit, timeout=180):
-    """Fire one actor run (sync). Returns list of items or []. No retry."""
+def run_actor(keyword, location, limit, min_days, max_days, poll_interval=15, run_timeout=3600):
+    """Fire one actor run (async). Returns list of items or []. No retry."""
+    posted_after = (date.today() - timedelta(days=max_days)).isoformat()
+
+    # Start the run
     try:
         resp = requests.post(
-            SYNC_URL,
+            RUN_URL,
             params={"token": APIFY_API_TOKEN},
             json={
-                "title": keyword,
+                "jobTitle": keyword,
                 "location": location,
-                "country": "us",
-                "limit": limit,
+                "postedAfter": posted_after,
+                "numJobs": limit,
+                "fewApplicants": True,
             },
-            timeout=timeout,
+            timeout=30,
         )
     except requests.RequestException as e:
         print(f"  [!] {keyword} @ {location}: {type(e).__name__}: {e}")
         return []
 
     if resp.status_code not in (200, 201):
-        print(f"  [!] {keyword} @ {location}: HTTP {resp.status_code} — {resp.text[:120]}")
+        print(f"  [!] {keyword} @ {location}: start HTTP {resp.status_code} — {resp.text[:120]}")
         return []
 
+    run_data = resp.json().get("data", {})
+    run_id = run_data.get("id")
+    dataset_id = run_data.get("defaultDatasetId")
+    if not run_id:
+        print(f"  [!] {keyword} @ {location}: no run id in response")
+        return []
+
+    # Poll until finished
+    status_url = f"https://api.apify.com/v2/acts/{ACTOR_ID}/runs/{run_id}"
+    deadline = time.time() + run_timeout
+    while time.time() < deadline:
+        time.sleep(poll_interval)
+        try:
+            s = requests.get(status_url, params={"token": APIFY_API_TOKEN}, timeout=30)
+            status = s.json().get("data", {}).get("status", "")
+        except Exception:
+            continue
+        if status == "SUCCEEDED":
+            break
+        if status in ("FAILED", "ABORTED", "TIMED-OUT"):
+            print(f"  [!] {keyword} @ {location}: run {status}")
+            return []
+    else:
+        print(f"  [!] {keyword} @ {location}: poll timeout after {run_timeout}s")
+        return []
+
+    # Fetch results from dataset
     try:
-        return resp.json() or []
-    except ValueError:
-        print(f"  [!] {keyword} @ {location}: invalid JSON response")
+        r = requests.get(
+            DATASET_URL.format(dataset_id=dataset_id),
+            params={"token": APIFY_API_TOKEN, "limit": limit},
+            timeout=120,
+        )
+        return r.json() or []
+    except Exception as e:
+        print(f"  [!] {keyword} @ {location}: dataset fetch error: {e}")
         return []
 
 
-def filter_items(items, existing_job_ids, min_days=30, max_days=60):
-    """Apply size + date-age + dedup filters. Returns (rows, stats_dict)."""
+def filter_items(items, existing_job_ids, min_days, max_days):
+    """Apply date-age + dedup + basic quality filters. Returns (rows, stats_dict)."""
     rows = []
-    stats = {"total": len(items), "no_company": 0, "too_big": 0,
-             "stale": 0, "dupe_existing": 0, "kept": 0}
+    stats = {"total": len(items), "no_company": 0, "wrong_age": 0,
+             "dupe_existing": 0, "kept": 0}
     today = date.today()
 
     for item in items:
-        job_id = item.get("key") or ""
+        job_id = str(item.get("id") or "").strip()
         if job_id and job_id in existing_job_ids:
             stats["dupe_existing"] += 1
             continue
 
-        emp = item.get("employer") or {}
-        company_name = (emp.get("name") or "").strip()
+        company_name = (item.get("companyName") or "").strip()
         if not company_name:
             stats["no_company"] += 1
             continue
 
-        size_lower = parse_size_lower_bound(emp.get("employeesCount", ""))
-        if size_lower is not None and size_lower > MAX_EMPLOYEES:
-            stats["too_big"] += 1
-            continue
-
-        posted = parse_iso_date(item.get("datePublished") or "")
+        posted = parse_iso_date(item.get("publishedAt") or "")
         if posted is None:
-            stats["stale"] += 1
+            stats["wrong_age"] += 1
             continue
         days_old = (today - posted).days
         if days_old < min_days or days_old > max_days:
-            stats["stale"] += 1
+            stats["wrong_age"] += 1
             continue
 
         rows.append((job_id, map_to_row(item)))
@@ -149,7 +153,6 @@ def filter_items(items, existing_job_ids, min_days=30, max_days=60):
 
 
 def load_existing_job_ids(service, sheet_id):
-    """Read column A (Job_Id) to build a skip-set for resume safety."""
     try:
         resp = service.spreadsheets().values().get(
             spreadsheetId=sheet_id, range=f"'{TAB_NAME}'!A2:A50000"
@@ -161,7 +164,6 @@ def load_existing_job_ids(service, sheet_id):
 
 
 def append_batch(service, sheet_id, batch, max_retries=6):
-    """Append with exponential backoff on HTTP 429 (Sheets write-quota)."""
     delay = 4
     for attempt in range(max_retries):
         try:
@@ -176,7 +178,7 @@ def append_batch(service, sheet_id, batch, max_retries=6):
         except HttpError as e:
             status = getattr(e.resp, "status", None)
             if status in (429, 503) and attempt < max_retries - 1:
-                print(f"  [!] Sheets {status} — backing off {delay}s (attempt {attempt + 1}/{max_retries})")
+                print(f"  [!] Sheets {status} — backing off {delay}s")
                 time.sleep(delay)
                 delay = min(delay * 2, 64)
                 continue
@@ -184,7 +186,6 @@ def append_batch(service, sheet_id, batch, max_retries=6):
 
 
 def ensure_headers(service, sheet_id):
-    """If A1 is empty, write the header row."""
     resp = service.spreadsheets().values().get(
         spreadsheetId=sheet_id, range=f"'{TAB_NAME}'!A1:A1"
     ).execute()
@@ -200,14 +201,14 @@ def ensure_headers(service, sheet_id):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Scrape Apify Indeed US HR (keyword × state grid) → Google Sheet")
+    parser = argparse.ArgumentParser(description="Scrape LinkedIn HR specialist roles → Google Sheet")
     parser.add_argument("--sheet_url", required=True)
-    parser.add_argument("--limit", type=int, default=100, help="Per-combo actor item cap (max 1000)")
+    parser.add_argument("--limit", type=int, default=50, help="Per-combo item cap (default 50)")
     parser.add_argument("--min_days", type=int, default=30, help="Minimum posting age in days (default 30)")
     parser.add_argument("--max_days", type=int, default=45, help="Maximum posting age in days (default 45)")
-    parser.add_argument("--states", default="", help="Comma-separated override")
     parser.add_argument("--keywords", default="", help="Comma-separated override")
-    parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--locations", default="", help="Comma-separated override")
+    parser.add_argument("--workers", type=int, default=5, help="Concurrent Apify runs (default 5)")
     parser.add_argument("--dry_run", action="store_true")
     parser.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
     args = parser.parse_args()
@@ -217,21 +218,27 @@ def main():
         sys.exit(1)
 
     keywords = [k.strip() for k in args.keywords.split(",") if k.strip()] if args.keywords else DEFAULT_KEYWORDS
-    states = [s.strip() for s in args.states.split(",") if s.strip()] if args.states else DEFAULT_STATES
-    limit = max(1, min(args.limit, 1000))
+    locations = [l.strip() for l in args.locations.split(",") if l.strip()] if args.locations else DEFAULT_LOCATIONS
 
-    combos = [(k, s) for k in keywords for s in states]
+    if not keywords or not locations:
+        print("ERROR: --keywords and --locations are required. Example:")
+        print('  --keywords "Benefits Manager" --locations "California"')
+        sys.exit(1)
+    limit = max(1, args.limit)
 
-    print("=== Apify Indeed US HR Scrape Orchestrator ===")
-    print(f"Actor:     {ACTOR_ID}")
-    print(f"Keywords:  {len(keywords)}  {keywords}")
-    print(f"States:    {len(states)}  {states}")
-    print(f"Combos:    {len(combos)}")
-    print(f"Limit:     {limit} per combo  (max items = {len(combos) * limit:,})")
-    print(f"Workers:   {args.workers}")
-    print(f"Max size:  ≤{MAX_EMPLOYEES} employees")
-    print(f"Age range: {args.min_days}–{args.max_days} days old")
-    print(f"Sheet:     {args.sheet_url}\n")
+    combos = [(k, l) for k in keywords for l in locations]
+    posted_after = (date.today() - timedelta(days=args.max_days)).isoformat()
+
+    print("=== LinkedIn HR Specialist Scrape Orchestrator ===")
+    print(f"Actor:      {ACTOR_ID}")
+    print(f"Keywords:   {len(keywords)}  {keywords}")
+    print(f"Locations:  {len(locations)}  {locations}")
+    print(f"Combos:     {len(combos)}")
+    print(f"Limit:      {limit} per combo  (max items = {len(combos) * limit:,})")
+    print(f"Workers:    {args.workers}")
+    print(f"Age range:  {args.min_days}–{args.max_days} days old")
+    print(f"Posted after: {posted_after}")
+    print(f"Sheet:      {args.sheet_url}\n")
 
     if args.dry_run:
         print("[DRY RUN] No Apify calls made.")
@@ -254,27 +261,26 @@ def main():
     seen = set(existing_job_ids)
     pending_batch = []
     totals = {"runs_ok": 0, "runs_fail": 0, "raw": 0, "no_company": 0,
-              "too_big": 0, "stale": 0, "dupe_existing": 0, "dupe_session": 0,
-              "written": 0}
+              "wrong_age": 0, "dupe_existing": 0, "dupe_session": 0, "written": 0}
     t0 = time.time()
 
-    def work(kw, st):
-        items = run_actor(kw, st, limit)
+    def work(kw, loc):
+        items = run_actor(kw, loc, limit, args.min_days, args.max_days)
         rows, stats = filter_items(items, existing_job_ids, args.min_days, args.max_days)
-        return kw, st, items, rows, stats
+        return kw, loc, items, rows, stats
 
     print(f"Launching {len(combos)} runs with {args.workers} workers...\n")
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        futures = {pool.submit(work, kw, st): (kw, st) for kw, st in combos}
+        futures = {pool.submit(work, kw, loc): (kw, loc) for kw, loc in combos}
         done_count = 0
         for fut in as_completed(futures):
             done_count += 1
-            kw, st = futures[fut]
+            kw, loc = futures[fut]
             try:
-                kw_r, st_r, items, rows, stats = fut.result()
+                kw_r, loc_r, items, rows, stats = fut.result()
             except Exception as e:
-                print(f"  [{done_count}/{len(combos)}] {kw} @ {st}: EXC {e}")
+                print(f"  [{done_count}/{len(combos)}] {kw} @ {loc}: EXC {e}")
                 totals["runs_fail"] += 1
                 continue
 
@@ -285,8 +291,7 @@ def main():
 
             totals["raw"] += stats["total"]
             totals["no_company"] += stats["no_company"]
-            totals["too_big"] += stats["too_big"]
-            totals["stale"] += stats["stale"]
+            totals["wrong_age"] += stats["wrong_age"]
             totals["dupe_existing"] += stats["dupe_existing"]
 
             session_new = []
@@ -313,7 +318,7 @@ def main():
                 time.sleep(1.2)
 
             elapsed = int(time.time() - t0)
-            print(f"  [{done_count}/{len(combos)}] {kw:22s} @ {st:16s}  "
+            print(f"  [{done_count}/{len(combos)}] {kw:30s} @ {loc:18s}  "
                   f"raw={stats['total']:3d}  new={len(session_new):3d}  "
                   f"written={totals['written']:5d}  ({elapsed}s)")
 
@@ -326,22 +331,21 @@ def main():
 
     elapsed = int(time.time() - t0)
     print("\n=== Summary ===")
-    print(f"Runs ok / fail:   {totals['runs_ok']} / {totals['runs_fail']}")
-    print(f"Raw items:        {totals['raw']:,}")
-    print(f"  Skipped no company: {totals['no_company']:,}")
-    print(f"  Skipped >{MAX_EMPLOYEES} emp:   {totals['too_big']:,}")
-    print(f"  Skipped wrong age:  {totals['stale']:,}  (outside {args.min_days}–{args.max_days} day window)")
-    print(f"  Skipped dupe existing: {totals['dupe_existing']:,}")
-    print(f"  Skipped dupe session:  {totals['dupe_session']:,}")
-    print(f"Rows written:     {totals['written']:,}")
-    print(f"Elapsed:          {elapsed}s")
-    print(f"Sheet:            {args.sheet_url}")
+    print(f"Runs ok / fail:      {totals['runs_ok']} / {totals['runs_fail']}")
+    print(f"Raw items:           {totals['raw']:,}")
+    print(f"  Skipped no company:   {totals['no_company']:,}")
+    print(f"  Skipped wrong age:    {totals['wrong_age']:,}  (outside {args.min_days}–{args.max_days} day window)")
+    print(f"  Skipped dupe existing:{totals['dupe_existing']:,}")
+    print(f"  Skipped dupe session: {totals['dupe_session']:,}")
+    print(f"Rows written:        {totals['written']:,}")
+    print(f"Elapsed:             {elapsed}s")
+    print(f"Sheet:               {args.sheet_url}")
 
-    if totals["written"] == 0 and totals["stale"] > 0 and totals["raw"] > 0:
+    if totals["written"] == 0 and totals["wrong_age"] > 0 and totals["raw"] > 0:
         print(
-            "\n[!] WARNING: All raw items were filtered out by the age window. "
-            "The Apify actor may be hard-limiting results to the last 14 days server-side. "
-            "Consider using a different actor or data source (TheirStack / LinkedIn) to reach older postings."
+            "\n[!] WARNING: All raw items filtered by age window. "
+            "The actor may not be honouring the postedAfter parameter. "
+            "Check publishedAt values in raw output."
         )
 
 

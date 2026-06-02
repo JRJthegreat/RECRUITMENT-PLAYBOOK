@@ -10,8 +10,6 @@ import os
 import sys
 import json
 import argparse
-import time
-import requests
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
@@ -25,7 +23,6 @@ ENV_PATH = os.path.join(SCRIPT_DIR, "..", "..", "..", ".env")
 load_dotenv(ENV_PATH)
 
 # Apify config
-APIFY_LINKEDIN_ACTOR = "harvestapi~linkedin-company-employees"
 APIFY_SYNC_BASE = "https://api.apify.com/v2/acts"
 APIFY_TIMEOUT = 300
 
@@ -222,43 +219,6 @@ def determine_target_titles_perm(job_title, employee_count_str):
 
 
 
-def search_linkedin_leaders(apify_token, company_linkedin_url):
-    """Find all Director+ level employees at a company via Apify LinkedIn scraper."""
-    url = f"{APIFY_SYNC_BASE}/{APIFY_LINKEDIN_ACTOR}/run-sync-get-dataset-items"
-
-    payload = {
-        "companies": [company_linkedin_url],
-        "seniorityLevelIds": ["220", "300", "310", "320"],  # Director, VP, CXO, Owner/Partner
-        "maxItems": 8,
-        "profileScraperMode": "Short ($4 per 1k)",
-    }
-
-    for attempt in range(2):
-        try:
-            resp = requests.post(
-                url,
-                params={"token": apify_token, "format": "json"},
-                json=payload,
-                timeout=APIFY_TIMEOUT,
-            )
-            if resp.status_code in (200, 201):
-                return resp.json()
-            elif resp.status_code == 402:
-                print(f"    Apify: insufficient credits")
-                return []
-            else:
-                print(f"    Apify error {resp.status_code}: {resp.text[:200]}")
-                if attempt == 0:
-                    time.sleep(2)
-        except requests.exceptions.Timeout:
-            print(f"    Apify timeout (attempt {attempt + 1})")
-            if attempt == 0:
-                time.sleep(2)
-        except requests.exceptions.RequestException as e:
-            print(f"    Apify request error: {e}")
-            return []
-
-    return []
 
 
 def get_candidate_title(candidate):
@@ -447,14 +407,7 @@ def process_lead(lead, apify_token):
     fallback_order.append((TARGET_HIRING, 600))
 
     candidates = []
-    method = "linkedin"
-
-    if lead["company_linkedin_url"]:
-        candidates = search_linkedin_leaders(
-            apify_token, lead["company_linkedin_url"]
-        )
-    else:
-        method = "no_linkedin_url"
+    method = "google"
 
     # Score all candidates and pick the best
     match = None

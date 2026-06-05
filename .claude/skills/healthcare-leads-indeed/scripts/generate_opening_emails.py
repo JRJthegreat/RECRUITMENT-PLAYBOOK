@@ -223,6 +223,7 @@ def main():
     ap.add_argument("--sheet_url", required=True)
     ap.add_argument("--tab", required=True)
     ap.add_argument("--preview", type=int, default=0)
+    ap.add_argument("--resume", action="store_true", help="Skip rows that already have an email body")
     ap.add_argument("--workers", type=int, default=LLM_WORKERS)
     args = ap.parse_args()
 
@@ -242,6 +243,8 @@ def main():
         co = safe_get(r, COL_COMPANY); dm = safe_get(r, COL_DM_NAME)
         email = safe_get(r, COL_EMAIL); ice = safe_get(r, COL_ICEBREAKER)
         if not co or not dm or not email or not ice:
+            continue
+        if args.resume and safe_get(r, COL_EMAIL_BODY):
             continue
         if co not in companies:
             companies[co] = {"row": r, "sheet_rows": []}

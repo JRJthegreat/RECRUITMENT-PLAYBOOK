@@ -1,14 +1,16 @@
 """
-Push healthcare agency leads to an existing Instantly campaign.
+Create "Healthcare Staffing - Competitor Angle" Instantly campaign and push
+215 leads from the campaign_v2 tab.
 
-Reads:  col J (linkedin_url/company_linkedin), col K (website),
+Reads:  col A  (companyName raw), col J (company_linkedin), col K (website),
         col L (dm_first_name), col M (dm_last_name), col N (dm_email),
-        col P (dm_linkedin), col Q (clean_company),
-        col R (icebreaker), col S (email_body)
+        col O (dm_title), col P (dm_linkedin), col Q (clean_company),
+        col W (email_body_v2 — full email incl. icebreaker)
 Writes: col V (added_to_instantly) → "TRUE" after each batch
 
-Personalization = icebreaker + blank line + email body (combined).
 Resume-safe: skips rows where col V already == "TRUE".
+NOTE: col W already contains the full email — personalization = col W directly,
+      do NOT prepend icebreaker.
 """
 
 import os
@@ -24,25 +26,27 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ENV_PATH = os.path.join(SCRIPT_DIR, "..", "..", "..", ".env")
+ENV_PATH   = os.path.join(SCRIPT_DIR, "..", "..", "..", ".env")
 TOKEN_PATH = os.path.join(SCRIPT_DIR, "..", "..", "..", "token.json")
 load_dotenv(ENV_PATH)
 
 INSTANTLY_API_KEY = os.getenv("INSTANTLY_API_KEY")
 INSTANTLY_BASE    = "https://api.instantly.ai/api/v2"
+CAMPAIGN_NAME     = "Healthcare Staffing - Competitor Angle"
 
 BATCH_SIZE = 10
 
-COL_CO_LI     = 9   # J — company LinkedIn
-COL_WEBSITE   = 10  # K
-COL_DM_FIRST  = 11  # L
-COL_DM_LAST   = 12  # M
-COL_EMAIL     = 13  # N
-COL_DM_LI     = 15  # P — DM LinkedIn
-COL_CLEAN_CO  = 16  # Q
-COL_ICEBREAKER = 17  # R
-COL_BODY      = 18  # S
-COL_ADDED     = 21  # V
+COL_COMPANY_RAW  = 0   # A
+COL_CO_LI        = 9   # J
+COL_WEBSITE      = 10  # K
+COL_DM_FIRST     = 11  # L
+COL_DM_LAST      = 12  # M
+COL_EMAIL        = 13  # N
+COL_DM_TITLE     = 14  # O
+COL_DM_LI        = 15  # P
+COL_CLEAN_CO     = 16  # Q
+COL_BODY_V2      = 22  # W — full email (icebreaker already included)
+COL_ADDED        = 21  # V
 
 
 def cell(row, idx):
@@ -53,12 +57,86 @@ def instantly_headers():
     return {"Authorization": f"Bearer {INSTANTLY_API_KEY}", "Content-Type": "application/json"}
 
 
-def push_lead(campaign_id, lead):
-    payload = dict(lead)
-    payload["campaign"] = campaign_id
+def create_campaign():
+    payload = {
+        "name": CAMPAIGN_NAME,
+        "campaign_schedule": {
+            "schedules": [{
+                "name": "New schedule",
+                "timing": {"from": "07:00", "to": "18:00"},
+                "days": {"1": True, "2": True, "3": True, "4": True, "5": True, "6": True},
+                "timezone": "America/Detroit",
+            }]
+        },
+        "sequences": [{
+            "steps": [
+                {
+                    "type": "email",
+                    "delay": 2,
+                    "delay_unit": "days",
+                    "variants": [{
+                        "subject": "routing some reqs your way",
+                        "body": "<div>{{personalization}}<br /><br /><br />Sent from my iPhone<br /><br /></div>",
+                    }],
+                },
+                {
+                    "type": "email",
+                    "delay": 2,
+                    "delay_unit": "days",
+                    "variants": [{
+                        "subject": "",
+                        "body": (
+                            "<div>hey {{firstName}},</div><div><br /></div>"
+                            "<div>Just bumping this up in case it got buried.<br />"
+                            "These medical practices have roles going unfilled for weeks. "
+                            "Patients going unattended and revenue walking out the door.<br /><br />"
+                            "Let me know if you are open to some warm intros.<br /><br />"
+                            "Best,<br />Jude</div><div><br /></div><div>Sent from my iPhone</div>"
+                        ),
+                    }],
+                },
+                {
+                    "type": "email",
+                    "delay": 5,
+                    "delay_unit": "days",
+                    "variants": [{
+                        "subject": "",
+                        "body": (
+                            "<div>hey {{firstName}},</div><div><br /></div>"
+                            "<div>Last note from me.</div><div><br /></div>"
+                            "<div>No worries if connecting with these medical practices is not a priority right now.</div>"
+                            "<div><br /></div>"
+                            "<div>When timing is right, feel free to reopen. I am one reply away.<br /><br />"
+                            "Best,<br />Jude</div><div><br /></div><div>Sent from my iPhone</div>"
+                        ),
+                    }],
+                },
+            ]
+        }],
+        "daily_limit": 2500,
+        "stop_on_reply": True,
+        "link_tracking": False,
+        "open_tracking": False,
+        "text_only": False,
+    }
+    resp = requests.post(
+        f"{INSTANTLY_BASE}/campaigns",
+        headers=instantly_headers(),
+        json=payload,
+        timeout=30,
+    )
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(f"Campaign creation failed ({resp.status_code}): {resp.text[:300]}")
+    data = resp.json()
+    return data.get("id") or data.get("campaign_id") or data["id"]
+
+
+def push_lead(campaign_id, payload):
+    body = dict(payload)
+    body["campaign"] = campaign_id
     try:
         resp = requests.post(f"{INSTANTLY_BASE}/leads", headers=instantly_headers(),
-                             json=payload, timeout=30)
+                             json=body, timeout=30)
         return resp.status_code == 200, resp.status_code, resp.text[:200]
     except requests.exceptions.RequestException as e:
         return False, 0, str(e)
@@ -152,7 +230,6 @@ def add_leads(campaign_id, leads, service, sheet_id, tab_name):
             if i + 1 < len(leads):
                 time.sleep(1.5)
 
-    # Retry failed leads
     if failed:
         print(f"\n  Retrying {len(failed)} failed leads...")
         for attempt in range(1, 4):
@@ -183,27 +260,37 @@ def add_leads(campaign_id, leads, service, sheet_id, tab_name):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Push agency leads to Instantly campaign")
+    ap = argparse.ArgumentParser(description="Create campaign + push campaign_v2 leads to Instantly")
     ap.add_argument("--sheet_url", required=True)
-    ap.add_argument("--campaign_id", required=True)
+    ap.add_argument("--campaign_id", default="",
+                    help="Skip campaign creation and use this existing campaign ID")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--dry_run", action="store_true")
-    ap.add_argument("--body_col", type=int, default=COL_BODY,
-                    help="0-based col index for email body (default 18=S, use 22 for W/email_body_v2)")
     args = ap.parse_args()
 
     if not INSTANTLY_API_KEY:
         print("ERROR: INSTANTLY_API_KEY not set in .env")
         return
 
-    print("=== Push Agency Leads → Instantly ===\n")
+    print(f"=== Push Campaign v2 → Instantly ===\n")
     service = get_service()
     sheet_id = get_sheet_id_from_url(args.sheet_url)
     tab_name, sheet_gid = resolve_tab(service, sheet_id, args.sheet_url)
-    print(f"Tab:      '{tab_name}'")
-    print(f"Campaign: {args.campaign_id}\n")
+    print(f"Tab: '{tab_name}'")
 
-    # Ensure col V exists + write header
+    # Resolve campaign
+    if args.campaign_id:
+        campaign_id = args.campaign_id
+        print(f"Campaign ID (provided): {campaign_id}")
+    elif args.dry_run:
+        campaign_id = "DRY_RUN"
+        print(f"Campaign: [dry run — no creation]")
+    else:
+        print(f"Creating campaign '{CAMPAIGN_NAME}'...")
+        campaign_id = create_campaign()
+        print(f"Campaign ID: {campaign_id}\n")
+
+    # Ensure col V exists
     meta = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
     for s in meta["sheets"]:
         if s["properties"]["sheetId"] == sheet_gid:
@@ -225,7 +312,7 @@ def main():
     ).execute()
 
     result = service.spreadsheets().values().get(
-        spreadsheetId=sheet_id, range=f"'{tab_name}'!A:V"
+        spreadsheetId=sheet_id, range=f"'{tab_name}'!A:W"
     ).execute()
     data_rows = result.get("values", [])[1:]
     print(f"Total rows: {len(data_rows)}")
@@ -239,21 +326,22 @@ def main():
             continue
         if cell(row, COL_ADDED).upper() == "TRUE":
             continue
-        icebreaker = cell(row, COL_ICEBREAKER)
-        body = cell(row, args.body_col)
-        if not icebreaker or not body:
+        body_v2 = cell(row, COL_BODY_V2)
+        if not body_v2:
             continue
         leads.append({
             "row_num": i + 2,
             "payload": {
-                "email":             email,
-                "first_name":        cell(row, COL_DM_FIRST),
-                "last_name":         cell(row, COL_DM_LAST),
-                "company_name":      cell(row, COL_CLEAN_CO),
-                "personalization":   f"{icebreaker}\n\n{body}",
-                "website":           cell(row, COL_WEBSITE),
-                "company_linkedin":  cell(row, COL_CO_LI),
-                "dm_linkedin":       cell(row, COL_DM_LI),
+                "email":            email,
+                "first_name":       cell(row, COL_DM_FIRST),
+                "last_name":        cell(row, COL_DM_LAST),
+                "company_name":     cell(row, COL_CLEAN_CO),
+                "personalization":  body_v2,
+                "website":          cell(row, COL_WEBSITE),
+                "company_linkedin": cell(row, COL_CO_LI),
+                "dm_linkedin":      cell(row, COL_DM_LI),
+                "title":            cell(row, COL_DM_TITLE),
+                "company_name_raw": cell(row, COL_COMPANY_RAW),
             },
         })
 
@@ -263,21 +351,29 @@ def main():
         for lead in leads[:5]:
             p = lead["payload"]
             print(f"  Row {lead['row_num']}: {p['email']}")
-            print(f"    first_name:   {p['first_name']}")
-            print(f"    company_name: {p['company_name']}")
+            print(f"    first_name:       {p['first_name']}")
+            print(f"    last_name:        {p['last_name']}")
+            print(f"    company_name:     {p['company_name']}")
+            print(f"    company_name_raw: {p['company_name_raw']}")
+            print(f"    title:            {p['title']}")
+            print(f"    website:          {p['website']}")
+            print(f"    company_linkedin: {p['company_linkedin']}")
+            print(f"    dm_linkedin:      {p['dm_linkedin']}")
             print(f"    personalization preview:")
-            preview = p['personalization'][:200].replace('\n', ' ↵ ')
-            print(f"      {preview}...")
+            preview = p["personalization"][:300].replace("\n", " ↵ ")
+            print(f"      {preview}")
             print()
-        print(f"[DRY RUN] No API calls.")
+        print("[DRY RUN] No API calls made.")
         return
 
-    added, failed = add_leads(args.campaign_id, leads, service, sheet_id, tab_name)
+    added, failed = add_leads(campaign_id, leads, service, sheet_id, tab_name)
 
     print(f"\n=== Done ===")
-    print(f"  Pushed:  {added}")
-    print(f"  Failed:  {failed}")
-    print(f"  Sheet:   https://docs.google.com/spreadsheets/d/{sheet_id}/edit")
+    print(f"  Campaign: {CAMPAIGN_NAME}")
+    print(f"  ID:       {campaign_id}")
+    print(f"  Pushed:   {added}")
+    print(f"  Failed:   {failed}")
+    print(f"  Sheet:    https://docs.google.com/spreadsheets/d/{sheet_id}/edit")
 
 
 if __name__ == "__main__":

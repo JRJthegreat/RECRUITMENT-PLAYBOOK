@@ -22,6 +22,7 @@ Each pipeline is a Claude Code skill with its own `SKILL.md` (authoritative deta
 | `healthcare-linkedin-leads` | LinkedIn (Apify) | Nurse Practitioner (low-applicant signal) | NY + MD |
 | `verify-leads` | Any sheet | Re-verify DMs + emails | Any |
 | `sba-campaigns` | SBA data | Borrower + lender outreach | US |
+| `healthcare-staffing-enrichment` | Any sheet | Classify/enrich healthcare staffing agencies | US |
 
 Utilities: `casualize-names`, `instantly-autoreply`, `add-webhook`, `local-server`.
 
@@ -40,10 +41,13 @@ The Indeed and LinkedIn pipelines share a common phase skeleton. All detailed ph
 | 2 | `find_dm.py` | Find decision maker via Google Search + LinkedIn snippets |
 | 2.5 | `verify_dms.py` | Verify DM is actually employed at target (Apify LinkedIn profile scrape) |
 | 3 | `enrich_emails.py` | AnyMail Finder — person endpoint (DM known) or /decision-maker fallback |
+| 3.5 | `find_dm_amf.py` | AMF rescue pass — retry `not_found` rows; `hr-leads-indeed` only |
 | 4 | `generate_emails.py` | LLM-generate personalized email body (**requires template approval first**) |
 | 5 | `push_campaign.py` | Push to Instantly campaign one lead at a time |
 
 Not every pipeline has every phase — check the skill's `SKILL.md` for the exact sequence.
+
+**`healthcare-leads-indeed` has extra manual steps** between Phase 1 and Phase 1.75 (sort by Date Published, delete pre-2026 rows, keyword-filter company names, remove >500-employee rows) that have no scripts — they're inline operations described in that SKILL.md.
 
 **TheirStack pipelines (`scrape-hr-leads`, `scrape-tech-leads`)** use a simpler 5-phase structure: `scrape_leads.py` → `find_dm.py` → `enrich_leads.py` → `generate_emails.py` → `push_campaign.py`.
 
@@ -138,6 +142,8 @@ AB:pipeline-specific  AC:pipeline-specific
 
 **healthcare-leads-indeed** differs (no Company Name col; historical reshuffling — see that SKILL.md for the authoritative layout). **tech-leads-indeed** and **civil-engineering-leads-indeed** also have minor column differences — each SKILL.md has the verified layout.
 
+**`tech-leads-indeed`** adds `AB:template_variant` and `AC:cleaned_role` (populated by `generate_emails.py`).
+
 ⚠️ Do not copy scripts between healthcare-leads-indeed and other pipelines — its `find_dm.py` and `enrich_emails.py` were repurposed for a staffing-agency schema with different column positions.
 
 ## Shared Utility Scripts
@@ -149,7 +155,26 @@ AB:pipeline-specific  AC:pipeline-specific
 - `verify_emails.py` / `verify_emails_uk.py` — email verification passes
 - `salesnav_enrich.py` / `salesnav_about_enrich.py` — Sales Navigator enrichment
 - `consolidate_tabs.py`, `filter_icp.py`, `reenrich_invalids.py` — sheet maintenance utilities
+- `push_campaign_uk.py`, `wipe_campaign_uk.py` — UK campaign variants (use with caution — `wipe_campaign_uk.py` is destructive)
+- `scrape_linkedin_profiles.py` — standalone LinkedIn profile batch scrape
 - `_inspect_*.py`, `_stats.py`, `_reorder_columns.py`, `_remove_unclassified.py` — diagnostics (prefixed `_` = dev tools, not pipeline steps)
+
+## SBA Campaigns
+
+`sba-campaigns` has no `SKILL.md`. It is a two-track outreach system using SBA loan data:
+
+- **Borrower track:** `find_borrower_websites.py` → `find_borrower_dms.py` → `enrich_borrower_emails.py` → `render_bodies.py` → `push_campaigns.py`
+- **Lender track:** `find_lender_dms.py` → `patch_lender_leads.py` → `push_campaigns.py`
+
+Lead lists come from `borrowers.txt` / `lenders.txt` in the skill directory. No Apify scrape step.
+
+## verify-leads Quirks
+
+`verify-leads` takes **0-based column indices** as CLI args (A=0, B=1, …) instead of letter names. The scripts are schema-agnostic — you pass `--col_name`, `--col_website`, `--col_dm_name`, etc. for each run. Always check the exact flags against `verify-leads/SKILL.md` before running.
+
+## healthcare-staffing-enrichment
+
+Standalone enrichment skill for healthcare staffing agency sheets (the supply side of the healthcare pipeline). No SKILL.md. Phase order: `classify_agencies.py` (drops non-agencies via GPT-4.1) → `find_websites.py` / `find_missing_websites.py` → `enrich_linkedin_company.py` → `enrich_company_profiles.py` → `find_ceo.py`. Uses Azure OpenAI for classification.
 
 ## Agents
 

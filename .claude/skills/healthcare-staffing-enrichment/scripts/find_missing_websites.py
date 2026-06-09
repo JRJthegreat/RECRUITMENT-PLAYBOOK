@@ -49,13 +49,11 @@ AZ_CLIENT = AzureOpenAI(
 )
 AZ_MODEL = os.getenv("AZURE_OPENAI_DEPLOYMENT_FAST", "gpt-4.1")
 
-SHEET_ID = "1b0PSJncVDZJ_-iz5IMB6GdPcWgZQ3F85XMpiL8A1rL4"
-TAB_NAME = "dataset_healthcare-recruitment-agencies_2026-05-17_13-09-00-863"
-
-COL_NAME     = 2   # C
-COL_LINKEDIN = 5   # F
-COL_STATE    = 9   # J
-COL_WEBSITE  = 11  # L
+COL_NAME     = 0   # A: Company Name
+COL_DOMAIN   = 1   # B: Company Domain
+COL_WEBSITE  = 3   # D: Company Website URL
+COL_LOCATION = 4   # E: Company Location ("City, State, Country")
+COL_LINKEDIN = 12  # M: Company Linkedin URL Unique ID
 
 APIFY_BATCH  = 50
 WRITE_BATCH  = 10
@@ -156,7 +154,20 @@ def get_service():
     return build("sheets", "v4", credentials=creds)
 
 
-def flush(service, updates):
+def parse_sheet_id(sheet_url):
+    m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", sheet_url)
+    if not m:
+        raise ValueError(f"Cannot parse sheet ID from: {sheet_url}")
+    return m.group(1)
+
+
+def extract_state(location):
+    """'Dallas, Texas, United States' → 'Texas'"""
+    parts = [p.strip() for p in location.split(",")]
+    return parts[1] if len(parts) >= 2 else ""
+
+
+def flush(service, updates, sheet_id, tab_name):
     """Each update: {"row": int, "website": str, "linkedin_url": str (optional)}"""
     if not updates:
         return
@@ -164,17 +175,17 @@ def flush(service, updates):
     for u in updates:
         if u.get("website"):
             data.append({
-                "range": f"'{TAB_NAME}'!{col_letter(COL_WEBSITE)}{u['row']}",
+                "range": f"'{tab_name}'!{col_letter(COL_WEBSITE)}{u['row']}",
                 "values": [[u["website"]]],
             })
         if u.get("linkedin_url"):
             data.append({
-                "range": f"'{TAB_NAME}'!{col_letter(COL_LINKEDIN)}{u['row']}",
+                "range": f"'{tab_name}'!{col_letter(COL_LINKEDIN)}{u['row']}",
                 "values": [[u["linkedin_url"]]],
             })
     if data:
         service.spreadsheets().values().batchUpdate(
-            spreadsheetId=SHEET_ID, body={"valueInputOption": "RAW", "data": data}
+            spreadsheetId=sheet_id, body={"valueInputOption": "RAW", "data": data}
         ).execute()
     time.sleep(1)
 
@@ -319,8 +330,13 @@ Respond with JSON only: {{"website": "full_url_or_empty_string"}}"""
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--sheet_url", required=True)
+    parser.add_argument("--tab", required=True)
     parser.add_argument("--limit", type=int, default=0)
     args = parser.parse_args()
+
+    sheet_id = parse_sheet_id(args.sheet_url)
+    tab_name = args.tab
 
     if not APIFY_TOKEN:
         print("ERROR: APIFY_API_TOKEN not set"); return
@@ -328,7 +344,7 @@ def main():
     service = get_service()
 
     rows = service.spreadsheets().values().get(
-        spreadsheetId=SHEET_ID, range=f"'{TAB_NAME}'!A:Z"
+        spreadsheetId=sheet_id, range=f"'{tab_name}'!A:Z"
     ).execute().get("values", [])[1:]
 
     # Split targets by whether they have a LinkedIn URL
@@ -337,11 +353,13 @@ def main():
 
     for i, row in enumerate(rows):
         name     = row[COL_NAME]     if len(row) > COL_NAME     else ""
+        domain   = row[COL_DOMAIN]   if len(row) > COL_DOMAIN   else ""
         website  = row[COL_WEBSITE]  if len(row) > COL_WEBSITE  else ""
         linkedin = row[COL_LINKEDIN] if len(row) > COL_LINKEDIN else ""
-        state    = row[COL_STATE]    if len(row) > COL_STATE    else ""
-        if name.strip() and not website.strip():
-            t = {"row": i + 2, "name": name.strip(), "state": state.strip()}
+        location = row[COL_LOCATION] if len(row) > COL_LOCATION else ""
+        state    = extract_state(location)
+        if name.strip() and not domain.strip() and not website.strip():
+            t = {"row": i + 2, "name": name.strip(), "state": state}
             if linkedin.strip():
                 t["linkedin_url"] = linkedin.strip()
                 has_linkedin.append(t)
@@ -377,13 +395,13 @@ def main():
                 need_google_fallback.append(t)
 
             if len(updates) >= WRITE_BATCH:
-                flush(service, updates)
+                flush(service, updates, sheet_id, tab_name)
                 updates = []
 
             time.sleep(0.3)
 
         if updates:
-            flush(service, updates)
+            flush(service, updates, sheet_id, tab_name)
             updates = []
 
         # Google fallback for Step A misses
@@ -428,13 +446,13 @@ def main():
                             print(f"  x   {t['name'][:50]:50s} → (not found)", flush=True)
 
                         if len(updates) >= WRITE_BATCH:
-                            flush(service, updates)
+                            flush(service, updates, sheet_id, tab_name)
                             updates = []
 
                 print(f"  Batch {bn} done — found={found}", flush=True)
 
             if updates:
-                flush(service, updates)
+                flush(service, updates, sheet_id, tab_name)
                 updates = []
 
     # ── Step B: No LinkedIn → find LinkedIn + website ─────────────────────────
@@ -470,11 +488,11 @@ def main():
                     updates.append({"row": t["row"], "linkedin_url": li_url})
 
                 if len(updates) >= WRITE_BATCH:
-                    flush(service, updates)
+                    flush(service, updates, sheet_id, tab_name)
                     updates = []
 
         if updates:
-            flush(service, updates)
+            flush(service, updates, sheet_id, tab_name)
             updates = []
 
         print(f"\n  LinkedIn found for {len(linkedin_found)}/{len(no_linkedin)} companies", flush=True)
@@ -497,13 +515,13 @@ def main():
                     need_google_b.append(t)
 
                 if len(updates) >= WRITE_BATCH:
-                    flush(service, updates)
+                    flush(service, updates, sheet_id, tab_name)
                     updates = []
 
                 time.sleep(0.3)
 
             if updates:
-                flush(service, updates)
+                flush(service, updates, sheet_id, tab_name)
                 updates = []
 
         # Companies with no LinkedIn at all also need Google fallback
@@ -552,13 +570,13 @@ def main():
                             print(f"  x   {t['name'][:50]:50s} → (not found)", flush=True)
 
                         if len(updates) >= WRITE_BATCH:
-                            flush(service, updates)
+                            flush(service, updates, sheet_id, tab_name)
                             updates = []
 
                 print(f"  Batch {bn} done — found={found}", flush=True)
 
             if updates:
-                flush(service, updates)
+                flush(service, updates, sheet_id, tab_name)
 
     print(f"\n=== Done ===")
     print(f"  Found    : {found}")

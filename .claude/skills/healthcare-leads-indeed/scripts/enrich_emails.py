@@ -14,7 +14,7 @@ Two modes processed in one pass:
     Writes name → T, title → U, linkedin → V, email → W.
 
 AMF auth: "Authorization: {API_KEY}" (no "Bearer").
-Accepts email_status in (valid, risky). "not_found" written to W for resume safety.
+Accepts email_status == valid only. Risky emails are rejected. "not_found" written to W for resume safety.
 """
 
 import os
@@ -167,7 +167,7 @@ def find_email_person(full_name, domain, company_name):
         data = resp.json()
         email = data.get("email")
         status = data.get("email_status", "unknown")
-        if email and status in ("valid", "risky"):
+        if email and status == "valid":
             return {"email": email, "status": status}
         return {"email": None, "status": status or "not_found"}
     except requests.exceptions.HTTPError as e:
@@ -193,7 +193,7 @@ def find_dm_one_call(domain, company_name, category):
         email = data.get("valid_email") or data.get("email")
         status = data.get("email_status", "unknown")
         return {
-            "email": email if email and status in ("valid", "risky") else None,
+            "email": email if email and status == "valid" else None,
             "status": status or "not_found",
             "person_name": data.get("person_full_name", "") or "",
             "person_title": data.get("person_job_title", "") or "",
@@ -342,8 +342,7 @@ def main():
                     r = fut.result()
                     sr = r["sheet_row"]
                     if r.get("email"):
-                        note = f" [{r['status']}]" if r["status"] == "risky" else ""
-                        print(f"    row {sr}: {r['dm_name']} -> {r['email']}{note}")
+                        print(f"    row {sr}: {r['dm_name']} -> {r['email']}")
                         updates.append({"range": f"'{TAB_NAME}'!{col_letter(COL_EMAIL)}{sr}", "values": [[r["email"]]]})
                         total_email_found += 1
                     else:

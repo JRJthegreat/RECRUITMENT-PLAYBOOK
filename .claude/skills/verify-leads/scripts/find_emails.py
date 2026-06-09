@@ -96,7 +96,7 @@ def find_person_email(api_key, full_name, domain, company_name):
         data = resp.json()
         email = data.get("email")
         status = data.get("email_status", "unknown")
-        if email and status in ("valid", "risky"):
+        if email and status == "valid":
             return {"email": email, "status": status}
         return {"email": None, "status": status}
     except requests.exceptions.HTTPError as e:
@@ -117,7 +117,7 @@ def find_dm_email(api_key, domain, company_name):
         email = data.get("valid_email") or data.get("email")
         status = data.get("email_status", "unknown")
         return {
-            "email": email if email and status in ("valid", "risky") else None,
+            "email": email if email and status == "valid" else None,
             "status": status,
             "name": data.get("person_full_name", ""),
             "title": data.get("person_job_title", ""),

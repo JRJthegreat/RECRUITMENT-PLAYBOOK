@@ -388,7 +388,7 @@ def amf_find_person_email(name, domain):
         data = resp.json()
         email = data.get("email")
         status = data.get("email_status", "unknown")
-        return {"email": email if email and status in ("valid", "risky") else None,
+        return {"email": email if email and status == "valid" else None,
                 "status": status or "not_found"}
     except Exception as e:
         return {"email": None, "status": f"error: {type(e).__name__}"}
@@ -416,7 +416,7 @@ def amf_find_dm(domain, company_name, target_role):
                     "name": name,
                     "title": data.get("person_job_title", "") or "",
                     "linkedin": data.get("person_linkedin_url", "") or "",
-                    "email": email if email and status in ("valid", "risky") else None,
+                    "email": email if email and status == "valid" else None,
                     "status": status,
                     "category": cat,
                 }

@@ -1,21 +1,14 @@
 """
 Phase 3: Find decision maker (CEO/Founder) name, title, and email.
 
-Step A (Primary — ~$0.015/company):
-  AnyMail Finder /find-email/decision-maker with company domain.
-  Source: website col M → company_domain col C as fallback.
+AMF only — no Google fallback.
 
-Step B (Fallback — ~$0.015/company):
-  Google Search → parse CEO name from result title → AnyMail Finder /find-email/person.
-  Only runs for rows still missing a DM after Step A.
-
-Writes:
-  - founder_name (DM name) → col F (index 5)
-  - dm_title              → col S (index 18)
-  - dm_email              → col T (index 19)  "not_found" written when AMF finds nothing.
+Validations applied to every result:
+  1. Company domain must not be a hosting/builder platform (Squarespace, Wix, etc.)
+  2. Email domain must match the company domain — cross-company matches are rejected.
 
 Run:
-  python3 -W ignore find_ceo.py --sheet_url "URL" [--limit N]
+  python3 -W ignore find_ceo.py --sheet_url "URL" --tab "TAB" [--target N] [--limit N]
 """
 
 import os
@@ -35,32 +28,31 @@ ENV_PATH = os.path.join(SCRIPT_DIR, "..", "..", "..", ".env")
 TOKEN_PATH = os.path.join(SCRIPT_DIR, "..", "..", "..", "token.json")
 load_dotenv(ENV_PATH)
 
-APIFY_TOKEN = os.getenv("APIFY_API_TOKEN")
-APIFY_BASE = "https://api.apify.com/v2"
-APIFY_GOOGLE = "apify~google-search-scraper"
-
 AMF_API_KEY = os.getenv("ANYMAILFINDER_API_KEY")
+
+# Domains that are hosting/builder platforms — never a real company domain
+HOSTING_DOMAINS = {
+    "squarespace.com", "wix.com", "wixsite.com", "weebly.com", "wordpress.com",
+    "webflow.io", "webflow.com", "godaddy.com", "shopify.com", "myshopify.com",
+    "netlify.app", "vercel.app", "github.io", "carrd.co", "strikingly.com",
+    "lovable.app", "framer.app", "framer.site", "bubble.io", "glide.page",
+    "linktr.ee", "linktree.com", "bio.link", "beacons.ai",
+    "mailchimp.com", "hubspot.com", "typeform.com",
+}
 AMF_DM_URL = "https://api.anymailfinder.com/v5.1/find-email/decision-maker"
 AMF_PERSON_URL = "https://api.anymailfinder.com/v5.1/find-email/person"
 
-SHEET_ID = "1b0PSJncVDZJ_-iz5IMB6GdPcWgZQ3F85XMpiL8A1rL4"
-TAB_NAME = "dataset_healthcare-recruitment-agencies_2026-05-17_13-09-00-863"
-COL_NAME        = 2   # C: company_name
-COL_DM_NAME     = 4   # E: founder_name
-COL_WEBSITE     = 11  # L: website
-COL_DM_TITLE    = 17  # R: dm_title
-COL_DM_EMAIL    = 18  # S: dm_email
-COL_DM_LINKEDIN = 19  # T: dm_linkedin_url
+COL_NAME        = 0   # A: Company Name
+COL_DOMAIN      = 1   # B: Company Domain (fallback when website col is empty)
+COL_WEBSITE     = 3   # D: Company Website URL
+COL_DM_NAME        = 13  # N: dm_name
+COL_DM_TITLE       = 14  # O: dm_title
+COL_DM_EMAIL       = 15  # P: dm_email (empty when not found)
+COL_DM_LINKEDIN    = 16  # Q: dm_linkedin_url
+COL_EMAIL_STATUS   = 17  # R: email_status ("found" / "not found")
 
 WRITE_BATCH = 10
-GOOGLE_BATCH = 50
 AMF_WORKERS = 8
-
-CEO_KEYWORDS = [
-    "ceo", "chief executive", "founder", "co-founder", "cofounder",
-    "president", "owner", "managing director", "managing partner",
-    "principal", "general manager",
-]
 
 
 def col_letter(idx):
@@ -86,28 +78,27 @@ def get_service():
     return build("sheets", "v4", credentials=creds)
 
 
-def ensure_headers(service):
-    # Get current sheet dimensions and expand if needed
-    meta = service.spreadsheets().get(spreadsheetId=SHEET_ID).execute()
-    sheet = next(s for s in meta["sheets"] if s["properties"]["title"] == TAB_NAME)
+def ensure_headers(service, sheet_id, tab_name):
+    meta = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+    sheet = next(s for s in meta["sheets"] if s["properties"]["title"] == tab_name)
     current_cols = sheet["properties"]["gridProperties"]["columnCount"]
     needed_cols = max(COL_DM_TITLE, COL_DM_EMAIL, COL_DM_LINKEDIN) + 2
     if current_cols < needed_cols:
-        sheet_id = sheet["properties"]["sheetId"]
+        tab_sheet_id = sheet["properties"]["sheetId"]
         service.spreadsheets().batchUpdate(
-            spreadsheetId=SHEET_ID,
+            spreadsheetId=sheet_id,
             body={"requests": [{"appendDimension": {
-                "sheetId": sheet_id,
+                "sheetId": tab_sheet_id,
                 "dimension": "COLUMNS",
                 "length": needed_cols - current_cols,
             }}]},
         ).execute()
         print(f"  Expanded sheet to {needed_cols} columns")
 
-    for col_idx, header in [(COL_DM_TITLE, "dm_title"), (COL_DM_EMAIL, "dm_email"), (COL_DM_LINKEDIN, "dm_linkedin_url")]:
+    for col_idx, header in [(COL_DM_NAME, "dm_name"), (COL_DM_TITLE, "dm_title"), (COL_DM_EMAIL, "dm_email"), (COL_DM_LINKEDIN, "dm_linkedin_url"), (COL_EMAIL_STATUS, "email_status")]:
         service.spreadsheets().values().update(
-            spreadsheetId=SHEET_ID,
-            range=f"'{TAB_NAME}'!{col_letter(col_idx)}1",
+            spreadsheetId=sheet_id,
+            range=f"'{tab_name}'!{col_letter(col_idx)}1",
             valueInputOption="RAW",
             body={"values": [[header]]},
         ).execute()
@@ -121,34 +112,41 @@ def extract_domain(url):
     return d if "." in d else ""
 
 
-def flush_updates(service, updates):
+def flush_updates(service, updates, sheet_id, tab_name):
     if not updates:
         return
     data = []
     for u in updates:
-        if u.get("dm_name"):
-            data.append({
-                "range": f"'{TAB_NAME}'!{col_letter(COL_DM_NAME)}{u['row']}",
-                "values": [[u["dm_name"]]],
-            })
-        if u.get("dm_title"):
-            data.append({
-                "range": f"'{TAB_NAME}'!{col_letter(COL_DM_TITLE)}{u['row']}",
-                "values": [[u["dm_title"]]],
-            })
-        if u.get("dm_linkedin"):
-            data.append({
-                "range": f"'{TAB_NAME}'!{col_letter(COL_DM_LINKEDIN)}{u['row']}",
-                "values": [[u["dm_linkedin"]]],
-            })
-        # Always write dm_email (even "not_found") so re-runs skip the row
+        dm_email = u.get("dm_email", "")
+        # Only write name/title/linkedin when a valid email was found — never write partial data
+        if dm_email:
+            if u.get("dm_name"):
+                data.append({
+                    "range": f"'{tab_name}'!{col_letter(COL_DM_NAME)}{u['row']}",
+                    "values": [[u["dm_name"]]],
+                })
+            if u.get("dm_title"):
+                data.append({
+                    "range": f"'{tab_name}'!{col_letter(COL_DM_TITLE)}{u['row']}",
+                    "values": [[u["dm_title"]]],
+                })
+            if u.get("dm_linkedin"):
+                data.append({
+                    "range": f"'{tab_name}'!{col_letter(COL_DM_LINKEDIN)}{u['row']}",
+                    "values": [[u["dm_linkedin"]]],
+                })
+        # Write email (empty when not found) and status column
         data.append({
-            "range": f"'{TAB_NAME}'!{col_letter(COL_DM_EMAIL)}{u['row']}",
-            "values": [[u.get("dm_email", "not_found")]],
+            "range": f"'{tab_name}'!{col_letter(COL_DM_EMAIL)}{u['row']}",
+            "values": [[dm_email]],
+        })
+        data.append({
+            "range": f"'{tab_name}'!{col_letter(COL_EMAIL_STATUS)}{u['row']}",
+            "values": [["found" if dm_email else "not found"]],
         })
     if data:
         service.spreadsheets().values().batchUpdate(
-            spreadsheetId=SHEET_ID, body={"valueInputOption": "RAW", "data": data}
+            spreadsheetId=sheet_id, body={"valueInputOption": "RAW", "data": data}
         ).execute()
     print(f"  -> Wrote {len(updates)} DMs", flush=True)
     time.sleep(1)
@@ -159,15 +157,13 @@ def amf_decision_maker(domain, company_name):
     body = {"decision_maker_category": ["ceo"]}
     if domain:
         body["domain"] = domain
-    if company_name:
-        body["company_name"] = company_name
     try:
         resp = requests.post(AMF_DM_URL, headers=headers, json=body, timeout=60)
         resp.raise_for_status()
         d = resp.json()
         email = d.get("valid_email") or d.get("email")
         status = d.get("email_status", "")
-        if status not in ("valid", "risky"):
+        if status != "valid":
             email = None
         return {
             "dm_name": d.get("person_full_name", "") or "",
@@ -179,107 +175,92 @@ def amf_decision_maker(domain, company_name):
         return {"dm_name": "", "dm_title": "", "dm_email": "", "dm_linkedin": "", "error": str(e)}
 
 
-def amf_person(full_name, domain, company_name):
-    headers = {"Authorization": AMF_API_KEY, "Content-Type": "application/json"}
-    parts = full_name.strip().split(None, 1)
-    body = {"full_name": full_name, "domain": domain}
-    if len(parts) >= 1:
-        body["first_name"] = parts[0]
-    if len(parts) >= 2:
-        body["last_name"] = parts[1]
-    if company_name:
-        body["company_name"] = company_name
-    try:
-        resp = requests.post(AMF_PERSON_URL, headers=headers, json=body, timeout=60)
-        resp.raise_for_status()
-        d = resp.json()
-        email = d.get("valid_email") or d.get("email")
-        status = d.get("email_status", "")
-        if status not in ("valid", "risky"):
-            email = None
-        return email or ""
-    except Exception:
+def root_domain(domain):
+    """'mail.company.com' → 'company.com', handles common 2-part TLDs."""
+    parts = domain.lower().strip().split(".")
+    two_part_tlds = {"co", "com", "org", "net", "gov", "edu", "ac"}
+    if len(parts) >= 3 and parts[-2] in two_part_tlds:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:]) if len(parts) >= 2 else domain
+
+
+def email_matches_domain(email, company_domain):
+    """Reject emails whose domain doesn't match the company's domain."""
+    if not email or not company_domain:
+        return False
+    email_domain = email.split("@")[-1].lower().strip()
+    return root_domain(email_domain) == root_domain(company_domain)
+
+
+def parse_sheet_id(sheet_url):
+    m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", sheet_url)
+    if not m:
+        raise ValueError(f"Cannot parse sheet ID from: {sheet_url}")
+    return m.group(1)
+
+
+def get_domain(row):
+    website = row[COL_WEBSITE] if len(row) > COL_WEBSITE else ""
+    domain = extract_domain(website)
+    if not domain:
+        raw_domain = row[COL_DOMAIN] if len(row) > COL_DOMAIN else ""
+        domain = extract_domain(raw_domain) or raw_domain.strip().lower()
+    # Reject hosting/builder platform domains
+    if root_domain(domain) in HOSTING_DOMAINS or domain in HOSTING_DOMAINS:
         return ""
+    return domain
 
 
-def apify_google_search(queries):
-    try:
-        resp = requests.post(
-            f"{APIFY_BASE}/acts/{APIFY_GOOGLE}/run-sync-get-dataset-items",
-            params={"token": APIFY_TOKEN},
-            json={"queries": "\n".join(queries), "resultsPerPage": 5,
-                  "maxPagesPerQuery": 1, "languageCode": "en",
-                  "countryCode": "us", "includeUnfilteredResults": False},
-            timeout=300,
-        )
-    except requests.RequestException as e:
-        print(f"  [!] Google search error: {e}")
-        return {}
-    if resp.status_code not in (200, 201):
-        print(f"  [!] HTTP {resp.status_code}: {resp.text[:200]}")
-        return {}
-    out = {}
-    for item in resp.json():
-        q = item.get("searchQuery", {}).get("term", "")
-        if q:
-            out[q] = item.get("organicResults", [])
-    return out
-
-
-def parse_ceo_from_results(organic):
-    for r in organic:
-        title = r.get("title", "")
-        url = r.get("url", "")
-        if "linkedin.com/in/" not in url.lower():
-            continue
-        linkedin_url = url.split("?")[0]
-        title = re.sub(r"\s*[|\-–]\s*LinkedIn\s*$", "", title, flags=re.IGNORECASE).strip()
-        parts = re.split(r"\s*[-–]\s*", title, maxsplit=2)
-        if len(parts) >= 2:
-            name = parts[0].strip()
-            role = re.sub(r"\s+at\s+.*$", "", parts[1].strip(), flags=re.IGNORECASE).strip()
-        else:
-            p2 = title.split(",", 1)
-            name = p2[0].strip()
-            role = p2[1].strip() if len(p2) == 2 else ""
-        if not name:
-            continue
-        role_lower = role.lower()
-        if any(kw in role_lower for kw in CEO_KEYWORDS):
-            return name, role, linkedin_url
-    return "", "", ""
+def count_verified(rows):
+    """Count rows with email_status == 'found'."""
+    count = 0
+    for row in rows:
+        status = row[COL_EMAIL_STATUS] if len(row) > COL_EMAIL_STATUS else ""
+        if status.strip().lower() == "found":
+            count += 1
+    return count
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--sheet_url", default=f"https://docs.google.com/spreadsheets/d/{SHEET_ID}")
+    parser.add_argument("--sheet_url", required=True)
+    parser.add_argument("--tab", required=True)
+    parser.add_argument("--target", type=int, default=0,
+                        help="Stop once this many verified DM emails exist in the sheet")
     parser.add_argument("--limit", type=int, default=0)
     args = parser.parse_args()
+
+    sheet_id = parse_sheet_id(args.sheet_url)
+    tab_name = args.tab
 
     if not AMF_API_KEY:
         print("ERROR: ANYMAILFINDER_API_KEY not set"); return
 
     service = get_service()
-    ensure_headers(service)
+    ensure_headers(service, sheet_id, tab_name)
 
     print("=== Phase 3: Find Decision Maker (AMF) ===\n", flush=True)
 
     rows = service.spreadsheets().values().get(
-        spreadsheetId=SHEET_ID, range=f"'{TAB_NAME}'!A:Z"
+        spreadsheetId=sheet_id, range=f"'{tab_name}'!A:Z"
     ).execute().get("values", [])[1:]
+
+    already_verified = count_verified(rows)
+    print(f"Already verified: {already_verified}", flush=True)
+    if args.target and already_verified >= args.target:
+        print(f"Target of {args.target} already reached — nothing to do."); return
+
+    remaining = (args.target - already_verified) if args.target else 0
 
     # Step A targets: no DM name, no dm_email already set, has some domain
     step_a = []
     for i, row in enumerate(rows):
         name = row[COL_NAME] if len(row) > COL_NAME else ""
         dm_name = row[COL_DM_NAME] if len(row) > COL_DM_NAME else ""
-        dm_email = row[COL_DM_EMAIL] if len(row) > COL_DM_EMAIL else ""
-        website = row[COL_WEBSITE] if len(row) > COL_WEBSITE else ""
-        domain = extract_domain(website)
-        if name.strip() and not dm_name.strip() and not dm_email.strip() and domain:
-            step_a.append({
-                "row": i + 2, "name": name.strip(), "domain": domain,
-            })
+        status = row[COL_EMAIL_STATUS] if len(row) > COL_EMAIL_STATUS else ""
+        domain = get_domain(row)
+        if name.strip() and not dm_name.strip() and not status.strip() and domain:
+            step_a.append({"row": i + 2, "name": name.strip(), "domain": domain})
 
     if args.limit:
         step_a = step_a[:args.limit]
@@ -287,6 +268,8 @@ def main():
     print(f"[Step A] AMF decision-maker lookup — {len(step_a)} companies...", flush=True)
     updates = []
     a_found = a_not_found = 0
+    verified_count = already_verified
+    target_hit = False
 
     def run_amf_dm(t):
         return t, amf_decision_maker(t["domain"], t["name"])
@@ -294,108 +277,43 @@ def main():
     with ThreadPoolExecutor(max_workers=AMF_WORKERS) as ex:
         futures = [ex.submit(run_amf_dm, t) for t in step_a]
         for i, fut in enumerate(as_completed(futures), 1):
+            if target_hit:
+                fut.cancel()
+                continue
             t, result = fut.result()
             dm_name = result.get("dm_name", "")
             dm_email = result.get("dm_email", "")
             dm_linkedin = result.get("dm_linkedin", "")
-            if dm_name or dm_email:
+            if dm_email:
                 a_found += 1
-                print(f"  +  {t['name'][:50]:50s} → {dm_name} | {dm_email or '(no email)'}", flush=True)
+                verified_count += 1
+                print(f"  +  {t['name'][:50]:50s} → {dm_name} | {dm_email} [{verified_count}/{args.target or '∞'}]", flush=True)
             else:
                 a_not_found += 1
             updates.append({
                 "row": t["row"],
                 "dm_name": dm_name,
                 "dm_title": result.get("dm_title", ""),
-                "dm_email": dm_email if dm_email else "not_found",
+                "dm_email": dm_email,
                 "dm_linkedin": dm_linkedin,
             })
             if len(updates) >= WRITE_BATCH:
-                flush_updates(service, updates)
+                flush_updates(service, updates, sheet_id, tab_name)
                 updates = []
+            if args.target and verified_count >= args.target:
+                print(f"\n  Target of {args.target} verified DMs reached — stopping.", flush=True)
+                target_hit = True
             if i % 50 == 0:
                 print(f"  Progress: {i}/{len(step_a)}", flush=True)
 
     if updates:
-        flush_updates(service, updates)
+        flush_updates(service, updates, sheet_id, tab_name)
     print(f"\n  Step A: found {a_found}, not found {a_not_found} / {len(step_a)}\n", flush=True)
 
-    # Re-read for Step B: dm_name still empty (AMF DM returned no name)
-    rows = service.spreadsheets().values().get(
-        spreadsheetId=SHEET_ID, range=f"'{TAB_NAME}'!A:Z"
-    ).execute().get("values", [])[1:]
+    if target_hit:
+        return
 
-    step_b = []
-    for i, row in enumerate(rows):
-        name = row[COL_NAME] if len(row) > COL_NAME else ""
-        dm_name = row[COL_DM_NAME] if len(row) > COL_DM_NAME else ""
-        website = row[COL_WEBSITE] if len(row) > COL_WEBSITE else ""
-        domain = extract_domain(website)
-        if name.strip() and not dm_name.strip() and domain:
-            step_b.append({"row": i + 2, "name": name.strip(), "domain": domain})
-
-    if args.limit:
-        step_b = step_b[:args.limit]
-
-    if not step_b:
-        print("[Step B] All companies have a DM name — skipping.\n"); return
-
-    print(f"[Step B] Google fallback — {len(step_b)} companies...", flush=True)
-    queries = [f'"{t["name"]}" ("CEO" OR "Founder" OR "President" OR "Owner") site:linkedin.com/in/' for t in step_b]
-    qmap = dict(zip(queries, step_b))
-    total_batches = (len(queries) + GOOGLE_BATCH - 1) // GOOGLE_BATCH
-    b_found = b_not_found = 0
-    updates = []
-
-    for b in range(0, len(queries), GOOGLE_BATCH):
-        batch = queries[b:b + GOOGLE_BATCH]
-        bn = b // GOOGLE_BATCH + 1
-        print(f"  Google batch {bn}/{total_batches}...", flush=True)
-        batch_results = apify_google_search(batch)
-
-        for q in batch:
-            t = qmap.get(q)
-            if not t:
-                continue
-            organic = batch_results.get(q, [])
-            ceo_name, ceo_title, ceo_linkedin = parse_ceo_from_results(organic)
-
-            if ceo_name:
-                email = amf_person(ceo_name, t["domain"], t["name"])
-                if email:
-                    b_found += 1
-                    print(f"  +  {t['name'][:50]:50s} → {ceo_name} | {email}", flush=True)
-                else:
-                    b_not_found += 1
-                    print(f"  ~  {t['name'][:50]:50s} → {ceo_name} (no email)", flush=True)
-                updates.append({
-                    "row": t["row"],
-                    "dm_name": ceo_name,
-                    "dm_title": ceo_title,
-                    "dm_email": email if email else "not_found",
-                    "dm_linkedin": ceo_linkedin,
-                })
-            else:
-                b_not_found += 1
-                updates.append({
-                    "row": t["row"],
-                    "dm_name": "",
-                    "dm_title": "",
-                    "dm_email": "not_found",
-                    "dm_linkedin": "",
-                })
-
-            if len(updates) >= WRITE_BATCH:
-                flush_updates(service, updates)
-                updates = []
-
-        print(f"  Batch {bn} done — {b_found} found so far", flush=True)
-
-    if updates:
-        flush_updates(service, updates)
-
-    print(f"\nStep B: found {b_found}, not found {b_not_found} / {len(step_b)}")
-    print(f"\nTotal: DM found {a_found + b_found} / {len(step_a) + len(step_b)}", flush=True)
+    print(f"\nTotal verified: {verified_count}", flush=True)
 
 
 if __name__ == "__main__":

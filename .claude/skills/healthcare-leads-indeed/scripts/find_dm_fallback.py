@@ -164,7 +164,7 @@ def amf_dm(domain, company):
                 em=d.get("valid_email") or d.get("email"); st=d.get("email_status","")
                 return {"name":name,"title":d.get("person_job_title","") or "",
                         "url":d.get("person_linkedin_url","") or "",
-                        "email":em if em and st in ("valid","risky") else None}
+                        "email":em if em and st == "valid" else None}
         except Exception:
             pass
     return None

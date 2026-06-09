@@ -96,7 +96,7 @@ def find_email(name, domain):
         data = resp.json()
         email = data.get("email")
         status = data.get("email_status", "unknown")
-        return email if email and status in ("valid", "risky") else None
+        return email if email and status == "valid" else None
     except Exception:
         return None
 

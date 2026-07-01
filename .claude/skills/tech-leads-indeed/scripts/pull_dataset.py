@@ -115,6 +115,25 @@ def setup_tab(service, sheet_id):
             }}]},
         ).execute()
 
+    # Pre-size the grid and pin 18px rows — appends only keep the pinned
+    # height when they land inside the existing grid
+    service.spreadsheets().batchUpdate(
+        spreadsheetId=sheet_id,
+        body={"requests": [
+            {"updateSheetProperties": {
+                "properties": {"sheetId": default_sheet_id,
+                               "gridProperties": {"rowCount": 30000}},
+                "fields": "gridProperties.rowCount",
+            }},
+            {"updateDimensionProperties": {
+                "range": {"sheetId": default_sheet_id, "dimension": "ROWS",
+                          "startIndex": 0, "endIndex": 30000},
+                "properties": {"pixelSize": 18},
+                "fields": "pixelSize",
+            }},
+        ]},
+    ).execute()
+
     service.spreadsheets().values().update(
         spreadsheetId=sheet_id,
         range=f"'{TAB_NAME}'!A1",

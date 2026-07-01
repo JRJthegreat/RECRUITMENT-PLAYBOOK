@@ -24,7 +24,7 @@ Each pipeline is a Claude Code skill with its own `SKILL.md` (authoritative deta
 | `sba-campaigns` | SBA data | Borrower + lender outreach | US |
 | `healthcare-staffing-enrichment` | Any sheet | Classify/enrich healthcare staffing agencies | US |
 
-Utilities: `casualize-names`, `instantly-autoreply`, `add-webhook`, `local-server`.
+Utilities: `casualize-names`, `instantly-autoreply`, `add-webhook`, `local-server`. (`classify-leads` and `scrape-leads` are empty leftover directories — ignore them.)
 
 ## Phase Architecture (Indeed / LinkedIn pipelines)
 
@@ -74,6 +74,8 @@ Scripts are run from the repo root. The `.env` is loaded relative to script loca
 **Email template approval gate:** Phase 4 (`generate_emails.py`) MUST NOT run until the user has seen and approved the template. Show `--preview N` output first, wait for explicit approval, then run for real.
 
 **Phase 4 and Phase 5 are manual stops** — never auto-chain into them.
+
+**Valid emails only:** AnyMail Finder `risky` results are rejected everywhere — only `email_status == "valid"` emails are written to sheets or pushed to Instantly, and DM name/title/LinkedIn are never written without a valid email (no partial data).
 
 **No sending accounts:** Never add sending accounts to Instantly campaigns; Jude configures those manually in the UI.
 
@@ -174,7 +176,15 @@ Lead lists come from `borrowers.txt` / `lenders.txt` in the skill directory. No 
 
 ## healthcare-staffing-enrichment
 
-Standalone enrichment skill for healthcare staffing agency sheets (the supply side of the healthcare pipeline). No SKILL.md. Phase order: `classify_agencies.py` (drops non-agencies via GPT-4.1) → `find_websites.py` / `find_missing_websites.py` → `enrich_linkedin_company.py` → `enrich_company_profiles.py` → `find_ceo.py`. Uses Azure OpenAI for classification.
+Standalone enrichment **and outreach** skill for healthcare staffing agency sheets (the supply side of the healthcare pipeline). No SKILL.md — script docstrings are the reference. Uses Azure OpenAI GPT-4.1 throughout (classification, website picking, about-page summaries).
+
+**Enrichment order:** `classify_agencies.py` (Google-via-Apify + GPT-4.1; `--apply` deletes non-agencies) → `find_websites.py` / `find_missing_websites.py` → `verify_websites.py` / `reverify_websites.py` (label website correct/not_correct; reverify clears DM columns when the stored website turns out wrong) → `scrape_company_about.py` → `enrich_linkedin_company.py` / `enrich_company_profiles.py` → `find_ceo.py` (AMF only, no Google fallback; rejects hosting-platform domains like Squarespace/Wix and emails whose domain doesn't match the company).
+
+**Outreach tail:** `generate_icebreaker.py` → `generate_email_body.py` (fixed body template + icebreaker) → `push_campaign.py` (creates the Instantly campaign as **DRAFT**; Jude activates manually). These take `--tab` — the sheet is multi-tab.
+
+**Quirks:**
+- Every script defaults to a hardcoded `SHEET_ID`; `verify_websites.py`, `reverify_websites.py`, and `enrich_company_profiles.py` take no `--sheet_url` at all — they only run against that sheet.
+- Two conflicting column schemas coexist in this skill. Older scripts (`reverify_websites.py`) expect DM name in col F; newer scripts (`find_ceo.py` and the outreach tail) use N:dm_name, P:dm_email, Q:dm_linkedin, R:email_status, S/T:first/last name, U:icebreaker, V:email_body, W:added_to_instantly. Always check the `COL_*` constants at the top of a script before running it.
 
 ## Agents
 

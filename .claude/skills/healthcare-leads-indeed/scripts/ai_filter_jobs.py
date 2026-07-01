@@ -22,6 +22,7 @@ Dry-run by default. Re-run with --apply to delete DROP rows.
 import os
 import re
 import json
+import time
 import argparse
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -110,27 +111,32 @@ def classify_one(client, row_no, title, company):
         company=company or "(unknown)",
         title=title or "(unknown)",
     )
-    try:
-        resp = client.chat.completions.create(
-            model=AZURE_DEPLOYMENT,
-            max_completion_tokens=200,
-            temperature=0,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": FILTER_SYSTEM},
-                {"role": "user", "content": user_msg},
-            ],
-        )
-        text = (resp.choices[0].message.content or "").strip()
-        m = re.search(r"\{.*\}", text, re.DOTALL)
-        if not m:
-            return row_no, {"keep": False, "reason": "no JSON — defaulted DROP"}
-        data = json.loads(m.group(0))
-        if "keep" not in data:
-            return row_no, {"keep": False, "reason": "malformed — defaulted DROP"}
-        return row_no, data
-    except Exception as e:
-        return row_no, {"keep": False, "reason": f"error — defaulted DROP ({e})"}
+    for attempt in range(6):
+        try:
+            resp = client.chat.completions.create(
+                model=AZURE_DEPLOYMENT,
+                max_completion_tokens=200,
+                temperature=0,
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": FILTER_SYSTEM},
+                    {"role": "user", "content": user_msg},
+                ],
+            )
+            text = (resp.choices[0].message.content or "").strip()
+            m = re.search(r"\{.*\}", text, re.DOTALL)
+            if not m:
+                return row_no, {"keep": False, "reason": "no JSON — defaulted DROP"}
+            data = json.loads(m.group(0))
+            if "keep" not in data:
+                return row_no, {"keep": False, "reason": "malformed — defaulted DROP"}
+            return row_no, data
+        except Exception as e:
+            if "429" in str(e) or "Too Many Requests" in str(e):
+                time.sleep(2 ** attempt)
+                continue
+            return row_no, {"keep": False, "reason": f"error — defaulted DROP ({e})"}
+    return row_no, {"keep": False, "reason": "error — rate-limited after 6 attempts"}
 
 
 def main():

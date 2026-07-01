@@ -18,6 +18,7 @@ Healthcare-specific DROP categories:
 import os
 import re
 import json
+import time
 import argparse
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -115,29 +116,34 @@ Classify per the rules. Return JSON only."""
 def classify_one(client, company, job_title, job_desc, company_desc):
     company_desc_block = f"Company description: {company_desc}\n" if company_desc else ""
     job_desc_truncated = job_desc[:800] if job_desc else "(not available)"
-    try:
-        resp = client.chat.completions.create(
-            model=AZURE_DEPLOYMENT,
-            max_tokens=150,
-            temperature=0,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": CLASSIFY_SYSTEM},
-                {"role": "user", "content": CLASSIFY_USER_TEMPLATE.format(
-                    company=company,
-                    job_title=job_title,
-                    company_desc_block=company_desc_block,
-                    job_desc=job_desc_truncated,
-                )},
-            ],
-        )
-        text = (resp.choices[0].message.content or "").strip()
-        m = re.search(r"\{.*\}", text, re.DOTALL)
-        if not m:
-            return {"classification": "uncertain", "reason": "no JSON"}
-        return json.loads(m.group(0))
-    except Exception as e:
-        return {"classification": "uncertain", "reason": f"error: {e}"}
+    for attempt in range(6):
+        try:
+            resp = client.chat.completions.create(
+                model=AZURE_DEPLOYMENT,
+                max_tokens=150,
+                temperature=0,
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": CLASSIFY_SYSTEM},
+                    {"role": "user", "content": CLASSIFY_USER_TEMPLATE.format(
+                        company=company,
+                        job_title=job_title,
+                        company_desc_block=company_desc_block,
+                        job_desc=job_desc_truncated,
+                    )},
+                ],
+            )
+            text = (resp.choices[0].message.content or "").strip()
+            m = re.search(r"\{.*\}", text, re.DOTALL)
+            if not m:
+                return {"classification": "uncertain", "reason": "no JSON"}
+            return json.loads(m.group(0))
+        except Exception as e:
+            if "429" in str(e) or "Too Many Requests" in str(e):
+                time.sleep(2 ** attempt)
+                continue
+            return {"classification": "uncertain", "reason": f"error: {e}"}
+    return {"classification": "uncertain", "reason": "error: rate-limited after 6 attempts"}
 
 
 # --- Main ---

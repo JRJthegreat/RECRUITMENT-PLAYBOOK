@@ -23,6 +23,7 @@ import os
 import re
 import json
 import time
+import threading
 import argparse
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -242,17 +243,21 @@ def main():
     print(f"Candidates to query: {len(targets)}", flush=True)
     updates, found, not_found = [], 0, 0
     verified = already
-    stop = False
+    stop_event = threading.Event()
 
     def run(t):
+        # Short-circuit queued tasks once the target is reached — avoids
+        # burning AMF credits on candidates we no longer need.
+        if stop_event.is_set():
+            return t, {"skip": True}
         return t, amf_decision_maker(t["domain"], t["name"])
 
     with ThreadPoolExecutor(max_workers=AMF_WORKERS) as ex:
         futures = [ex.submit(run, t) for t in targets]
         for i, fut in enumerate(as_completed(futures), 1):
-            if stop:
-                fut.cancel(); continue
             t, result = fut.result()
+            if result.get("skip"):
+                continue
             dm_email = result.get("dm_email", "")
             if dm_email:
                 found += 1; verified += 1
@@ -268,7 +273,7 @@ def main():
                 flush_updates(service, updates, sheet_id, tab); updates = []
             if verified >= args.target:
                 print(f"\nTarget of {args.target} reached — stopping.", flush=True)
-                stop = True
+                stop_event.set()
             if i % 100 == 0:
                 print(f"  Progress: {i}/{len(targets)} (found {found}, not found {not_found})", flush=True)
 

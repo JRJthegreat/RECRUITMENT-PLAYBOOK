@@ -37,7 +37,7 @@ WRITE_BATCH = 10
 
 # Approved body. {first} is substituted per lead. Plain-text lines; HTML-ized below.
 BODY_LINES = [
-    "Hey {first},",
+    "Hi {first},",
     "",
     "Love how you still keep the human side front and center when sourcing candidates, "
     "not just letting AI do all the work. Seems like you care more about the fit, not just the fill.",
@@ -120,11 +120,21 @@ def flush(service, updates, sheet_id, tab_name):
         return
     data = [{"range": f"'{tab_name}'!{col_letter(COL_EMAIL_BODY)}{u['row']}", "values": [[u["body"]]]}
             for u in updates]
-    service.spreadsheets().values().batchUpdate(
-        spreadsheetId=sheet_id, body={"valueInputOption": "RAW", "data": data}
-    ).execute()
+    for attempt in range(6):
+        try:
+            service.spreadsheets().values().batchUpdate(
+                spreadsheetId=sheet_id, body={"valueInputOption": "RAW", "data": data}
+            ).execute()
+            break
+        except Exception as e:
+            if "429" in str(e) or "RATE_LIMIT" in str(e):
+                wait = min(60, 2 ** attempt * 5)
+                print(f"  429 rate-limited — backing off {wait}s (attempt {attempt+1}/6)", flush=True)
+                time.sleep(wait)
+            else:
+                raise
     print(f"  -> Wrote {len(updates)} rows", flush=True)
-    time.sleep(0.4)
+    time.sleep(1.1)
 
 
 def main():

@@ -23,6 +23,7 @@ Each pipeline is a Claude Code skill with its own `SKILL.md` (authoritative deta
 | `verify-leads` | Any sheet | Re-verify DMs + emails | Any |
 | `sba-campaigns` | SBA data | Borrower + lender outreach | US |
 | `healthcare-staffing-enrichment` | Any sheet | Classify/enrich healthcare staffing agencies | US |
+| `recruitment-email-gen` | Any sheet | Niche-agnostic supply-side outreach to recruitment agencies | Any (currently AU) |
 
 Utilities: `casualize-names`, `instantly-autoreply`, `add-webhook`, `local-server`. (`classify-leads` and `scrape-leads` are empty leftover directories — ignore them.)
 
@@ -182,9 +183,20 @@ Standalone enrichment **and outreach** skill for healthcare staffing agency shee
 
 **Outreach tail:** `generate_icebreaker.py` → `generate_email_body.py` (fixed body template + icebreaker) → `push_campaign.py` (creates the Instantly campaign as **DRAFT**; Jude activates manually). These take `--tab` — the sheet is multi-tab.
 
+**Demand-campaign track** (healthcare recruitment firms as the leads, sourced from an AI Ark export with an A-N schema): `split_by_headcount.py` (splits source into `1-50 EMP` / `50-200 EMP` tabs by col B) → `find_ceo_demand.py` (AMF /decision-maker with domain + company name; appends O:dm_name P:dm_title Q:dm_email R:dm_linkedin S:email_status) → `split_dm_names.py` (GPT-4.1 name split → T/U) → `generate_demand_body.py` (fixed HTML template, `{first_name}` only → V) → `push_demand_campaign.py` (DRAFT campaign; refuses rows whose email domain doesn't match the website domain) → `patch_greeting.py` (one-off post-push copy patcher — updates sheet col V, the Instantly sequence, AND each pushed lead's personalization).
+
+**SIA one-offs:** `enrich_sia_emails.py` (AMF person endpoint), `enrich_sia_company_dms.py` (AMF /decision-maker for company-only rows), `rescue_sia_dms.py` (Google-search DM discovery then AMF person) — hardwired to the SIA Attendees sheet's own A-L schema.
+
 **Quirks:**
 - Every script defaults to a hardcoded `SHEET_ID`; `verify_websites.py`, `reverify_websites.py`, and `enrich_company_profiles.py` take no `--sheet_url` at all — they only run against that sheet.
-- Two conflicting column schemas coexist in this skill. Older scripts (`reverify_websites.py`) expect DM name in col F; newer scripts (`find_ceo.py` and the outreach tail) use N:dm_name, P:dm_email, Q:dm_linkedin, R:email_status, S/T:first/last name, U:icebreaker, V:email_body, W:added_to_instantly. Always check the `COL_*` constants at the top of a script before running it.
+- **Three conflicting column schemas coexist in this skill.** Older scripts (`reverify_websites.py`) expect DM name in col F; the supply-side outreach tail (`find_ceo.py` onward) uses N:dm_name, P:dm_email, Q:dm_linkedin, R:email_status; the demand track uses O:dm_name, Q:dm_email, S:email_status on top of the A-N AI Ark layout. Always check the `COL_*` constants at the top of a script before running it.
+- Status filters differ per track — some downstream scripts filter on `email_status == "found"`, not `"valid"`. Match the docstring of the script you're running.
+
+## recruitment-email-gen
+
+Niche-agnostic supply-side outreach skill (ICP = recruitment agencies; first used for the AU campaign). No SKILL.md — script docstrings are the reference. Unlike `verify-leads`, column flags take **letter names** (`--col_website J`, `--col_dm_name AA`), and every column is configurable per run, so it works against any sheet schema.
+
+**Order:** `find_dm_amf.py` (AMF /decision-maker straight from domain — no Google DM search; valid + domain-match emails only) → `scrape_website.py` (direct HTTP fetch of about/services/sectors pages, GPT-4.1 summary — no Apify cost) → `generate_icebreaker.py` (static icebreaker, only first name injected; also splits first/last name) → `generate_email_body.py` (GPT-5.1 extracts just two facts — ICP + one role — and the email is assembled deterministically in code) → `push_campaign.py` (DRAFT campaign; body rides as `{{personalization}}`; no subject line).
 
 ## Agents
 

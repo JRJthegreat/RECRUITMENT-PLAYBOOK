@@ -59,13 +59,13 @@ COL_ADDED        = 22  # W
 
 SUBJECT = "new healthcare reqs"
 
-FU1 = ("<div>Hey {{firstName}},</div><div><br /></div>"
+FU1 = ("<div>Hi {{firstName}},</div><div><br /></div>"
        "<div>Floating this back up. The healthcare employers I'm talking to are moving on their "
        "expansion hiring now, so the timing's better than waiting a few months.</div><div><br /></div>"
        "<div>Let me know if you're open to some warm intros.</div><div><br /></div>"
        "<div>Best,</div><div>Jude</div>")
 
-FU2 = ("<div>Hey {{firstName}},</div><div><br /></div>"
+FU2 = ("<div>Hi {{firstName}},</div><div><br /></div>"
        "<div>Last note from me. If connecting with healthcare employers before the roles go live "
        "ever becomes a priority, feel free to re-open. I'm one reply away.</div><div><br /></div>"
        "<div>Best,</div><div>Jude</div>")

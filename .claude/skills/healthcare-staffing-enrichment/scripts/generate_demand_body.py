@@ -2,7 +2,8 @@
 Generate the personalized email body (col V) for the healthcare recruitment-firm
 demand campaign, from the approved fixed template with {first_name} substituted.
 
-Output is HTML (campaign is not text-only) used as the {{personalization}} variable.
+Output is plain text with newlines (campaign is text-only) used as the
+{{personalization}} variable.
 
 Reads:  col S (email_status), col T (first_name)
 Writes: col V (email_body)
@@ -35,18 +36,19 @@ COL_EMAIL_BODY   = 21  # V
 
 WRITE_BATCH = 10
 
-# Approved body. {first} is substituted per lead. Plain-text lines; HTML-ized below.
+# Approved body. {first} is substituted per lead. Plain text, newline-joined.
 BODY_LINES = [
     "Hi {first},",
     "",
     "Love how you still keep the human side front and center when sourcing candidates, "
     "not just letting AI do all the work. Seems like you care more about the fit, not just the fill.",
     "",
-    "I'm in touch with healthcare employers across the US that are expanding to new locations, "
-    "and most want a pipeline in place before the hiring crunch hits. Rather than run the searches "
-    "myself, I route those reqs to specialist firms like yours.",
+    "I'm in touch with healthcare employers across the US that are expanding to new locations "
+    "and want a hiring pipeline in place before the crunch hits. Since I'm not a recruiter, "
+    "I have been routing those reqs to specialist firms like yours rather than running the "
+    "searches myself, hence why I reached out.",
     "",
-    "Are you open to new reqs right now, or are you already at capacity?",
+    "Are you open to new reqs right now, or already at capacity?",
     "",
     "Best,",
     "Jude",
@@ -54,13 +56,7 @@ BODY_LINES = [
 
 
 def build_body(first):
-    html = []
-    for line in BODY_LINES:
-        if line == "":
-            html.append("<div><br /></div>")
-        else:
-            html.append(f"<div>{line.format(first=first)}</div>")
-    return "".join(html)
+    return "\n".join(line.format(first=first) for line in BODY_LINES)
 
 
 def col_letter(idx):

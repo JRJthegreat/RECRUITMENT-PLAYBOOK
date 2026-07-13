@@ -2,8 +2,10 @@
 Create the healthcare recruitment-firm DEMAND campaign in Instantly (DRAFT) and
 push valid leads one at a time with all personalization variables.
 
-Settings mirror reference campaign 84a9ef15 (Mon-Sat 07:00-18:00 America/Detroit,
-daily_limit 100, stop_on_reply, no link/open tracking).
+Settings mirror the live demand campaign 99954947 (Mon-Sat 07:00-18:00
+America/Detroit, daily_limit 500, stop_on_reply, no link/open tracking) plus
+text_only + first_email_text_only — all emails are sent as plain text.
+Lead personalization (col V) is plain text with newlines, not HTML.
 
 Sequence (3 steps): initial ("new healthcare reqs") + 2 in-thread follow-ups.
 
@@ -15,10 +17,16 @@ Schema (1-50 EMP tab):
   A:Company Name  H:Website  I:LinkedIn(company)  P:dm_title  Q:dm_email
   R:dm_linkedin   S:email_status  T:first_name  U:last_name  V:email_body  W:added_to_instantly
 
-Data guard: a found row is pushed only if its email domain matches its website
-domain (catches scrambled/mismatched rows). Skipped rows are logged.
+Data guards:
+  1. A found row is pushed only if its email domain matches its website
+     domain (catches scrambled/mismatched rows). Skipped rows are logged.
+  2. Duplicate emails are skipped — both within this push (multi-location
+     companies sharing one CEO) and against rows already pushed in any
+     earlier campaign (col W == TRUE anywhere in the tab).
 
-Resume-safe: skips rows where col W == "TRUE".
+Resume-safe: skips rows where col W == "TRUE" or "BLOCKLISTED".
+Leads rejected by Instantly's workspace blocklist (permanent 400) are marked
+col W = "BLOCKLISTED" immediately and not retried.
 
 Run:
   python3 -W ignore push_demand_campaign.py --sheet_url "URL" --tab "TAB" \
@@ -144,13 +152,13 @@ def create_campaign(name):
             {"type": "email", "delay": 4, "delay_unit": "days", "pre_delay_unit": "days",
              "variants": [{"subject": "", "body": FU2}]},
         ]}],
-        "daily_limit": 100,
+        "daily_limit": 500,
         "stop_on_reply": True,
         "stop_on_auto_reply": False,
         "link_tracking": False,
         "open_tracking": False,
-        "text_only": False,
-        "first_email_text_only": False,
+        "text_only": True,
+        "first_email_text_only": True,
         "prioritize_new_leads": False,
         "stop_for_company": False,
     }
@@ -212,17 +220,25 @@ def main():
     ).execute().get("values", [])[1:]
     print(f"Total rows: {len(rows)}")
 
-    leads, skipped = [], 0
+    # emails already pushed in any earlier campaign — never push twice
+    seen_emails = {cell(r, COL_DM_EMAIL).lower() for r in rows
+                   if cell(r, COL_ADDED).upper() == "TRUE" and cell(r, COL_DM_EMAIL)}
+
+    leads, skipped, skipped_dupe = [], 0, 0
     for i, row in enumerate(rows):
         if args.limit and len(leads) >= args.limit:
             break
         if cell(row, COL_EMAIL_STATUS).lower() != "found":
             continue
-        if cell(row, COL_ADDED).upper() == "TRUE":
+        if cell(row, COL_ADDED).upper() in ("TRUE", "BLOCKLISTED"):
             continue
         email = cell(row, COL_DM_EMAIL)
         body  = cell(row, COL_BODY)
         if not email or not body:
+            continue
+        if email.lower() in seen_emails:
+            skipped_dupe += 1
+            print(f"  SKIP (duplicate email) row {i+2}: {cell(row, COL_COMPANY)[:30]} | {email}")
             continue
         # data guard: email domain must match website domain
         wd = root_domain(extract_domain(cell(row, COL_WEBSITE)))
@@ -231,6 +247,7 @@ def main():
             skipped += 1
             print(f"  SKIP (domain mismatch) row {i+2}: {cell(row, COL_COMPANY)[:30]} | web={cell(row, COL_WEBSITE)} | {email}")
             continue
+        seen_emails.add(email.lower())
         leads.append({
             "row_num": i + 2,
             "payload": {
@@ -248,7 +265,7 @@ def main():
             },
         })
 
-    print(f"Leads to push: {len(leads)} | skipped (mismatch): {skipped}\n")
+    print(f"Leads to push: {len(leads)} | skipped (mismatch): {skipped} | skipped (dupe email): {skipped_dupe}\n")
 
     if args.dry_run:
         for lead in leads[:3]:
@@ -273,17 +290,26 @@ def main():
         campaign_id = create_campaign(args.campaign_name)
         print(f"  Campaign created: {campaign_id}\n")
 
-    added, failed = 0, []
+    added, blocklisted_idx, failed = 0, set(), []
     for i, lead in enumerate(leads):
         ok, status, text = push_lead(campaign_id, lead["payload"])
         if ok:
             added += 1
+        elif status == 400 and "blocklist" in text.lower():
+            blocklisted_idx.add(i)
+            print(f"  Lead {i+1} BLOCKLISTED (permanent): {lead['payload']['email']}")
+            try:
+                service.spreadsheets().values().batchUpdate(
+                    spreadsheetId=sheet_id, body={"valueInputOption": "RAW", "data": [{
+                        "range": f"'{tab}'!{col_letter(COL_ADDED)}{lead['row_num']}", "values": [["BLOCKLISTED"]]}]}).execute()
+            except Exception as e:
+                print(f"  Sheet write failed for BLOCKLISTED mark: {e}")
         else:
             print(f"  Lead {i+1} failed ({status}): {text}")
             failed.append((i, lead))
         if (i + 1) % BATCH_SIZE == 0 or (i + 1) == len(leads):
             batch_start = (i // BATCH_SIZE) * BATCH_SIZE
-            failed_idx = {idx for idx, _ in failed}
+            failed_idx = {idx for idx, _ in failed} | blocklisted_idx
             updates = [{"range": f"'{tab}'!{col_letter(COL_ADDED)}{ld['row_num']}", "values": [["TRUE"]]}
                        for j, ld in enumerate(leads[batch_start:i + 1], batch_start) if j not in failed_idx]
             if updates:
@@ -321,6 +347,7 @@ def main():
 
     print(f"\n=== Done ===")
     print(f"  Pushed:      {added}")
+    print(f"  Blocklisted: {len(blocklisted_idx)}")
     print(f"  Failed:      {len(failed)}")
     print(f"  Campaign ID: {campaign_id}")
     print(f"\n  Campaign is DRAFT — add sending accounts and activate in Instantly UI.")

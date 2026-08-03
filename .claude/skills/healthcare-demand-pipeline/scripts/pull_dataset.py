@@ -38,6 +38,15 @@ APIFY_PAGE_SIZE = 1000
 
 BATCH_SIZE = 10
 TAB_NAME = "Leads"
+# 500-employee cap (Jude, 2026-07-31). Reply rate by band on Indiana + Texas:
+# TINY <50 3.52%, size-unknown 2.74%, MID 50-499 1.20%, LARGE 500+ 0.00%
+# (0 replies from 251 companies). Blank/unparseable size is KEPT.
+#
+# Known cost, accepted: Indeed reports the EMPLOYER BRAND's headcount, so a
+# single facility posting under its parent's profile inherits the parent's
+# size. Nine Life Care Center nursing homes on the Indiana sheet are all
+# tagged 40,000 and this cap removes every one of them. Pass
+# --max_employees 0 to disable.
 MAX_EMPLOYEES = 500
 SHEET_TITLE = "Healthcare Indeed Leads"
 
@@ -302,6 +311,11 @@ def main():
     parser.add_argument("--sheet_url", help="Existing Google Sheet URL to append to")
     parser.add_argument("--sheet_title", default=SHEET_TITLE, help="Title for new sheet (ignored if --sheet_url)")
     parser.add_argument("--limit", type=int, default=0, help="Max items to pull (0 = all)")
+    parser.add_argument("--max_employees", type=int, default=MAX_EMPLOYEES,
+                        help="Drop employers above this headcount (default 500). "
+                             "0 disables. Indeed reports the employer BRAND's "
+                             "size, so chain facilities inherit the parent's and "
+                             "the cap removes them too.")
     args = parser.parse_args()
 
     if not APIFY_API_TOKEN:
@@ -323,6 +337,7 @@ def main():
     print(f"\n[2/3] Fetching dataset {args.dataset_id}...")
     items = fetch_dataset(args.dataset_id)
 
+    max_emp = args.max_employees or None
     skipped_no_company = 0
     skipped_too_big = 0
     rows = []
@@ -334,10 +349,11 @@ def main():
             skipped_no_company += 1
             continue
 
-        size_lower = parse_size_lower_bound(emp.get("employeesCount", ""))
-        if size_lower is not None and size_lower > MAX_EMPLOYEES:
-            skipped_too_big += 1
-            continue
+        if max_emp is not None:
+            size_lower = parse_size_lower_bound(emp.get("employeesCount", ""))
+            if size_lower is not None and size_lower > max_emp:
+                skipped_too_big += 1
+                continue
 
         rows.append(map_to_row(item))
 
@@ -345,7 +361,10 @@ def main():
             break
 
     print(f"  Skipped (no company name): {skipped_no_company}")
-    print(f"  Skipped (>{MAX_EMPLOYEES} employees): {skipped_too_big}")
+    if max_emp is None:
+        print("  Size cap: none (chain facilities inherit parent headcount)")
+    else:
+        print(f"  Skipped (>{max_emp} employees): {skipped_too_big}")
     print(f"  Kept: {len(rows)}")
 
     print(f"\n[3/3] Writing {len(rows)} rows...")

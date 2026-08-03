@@ -2,9 +2,12 @@
 Phase 1: Orchestrate Apify Indeed scrapes → Google Sheet (US Healthcare).
 
 Iterates keyword × city grid, calling the `valig/indeed-jobs-scraper` actor
-once per combo. Filters at ingestion (≤ MAX_EMPLOYEES, 30+ days old, no
-duplicate Job_Ids). Streams rows into the sheet in batches of 10 as combos
-complete. Creates a new Google Sheet on first run if --sheet_url is omitted.
+once per combo. Filters at ingestion on posting age and duplicate Job_Ids
+only — there is NO size cap (hard rule 2), despite what older copies of this
+docstring claimed. Company size is carried through untouched and only ever
+drives DM-targeting bands and processing priority downstream. Streams rows
+into the sheet in batches of 10 as combos complete. Creates a new Google
+Sheet on first run if --sheet_url is omitted.
 
 Usage:
   python3 -W ignore scrape_and_pull.py --sheet_url "URL" [options]
@@ -14,7 +17,7 @@ Usage:
   --limit 100            per-combo item cap (actor max is 1000)
   --cities "A,B,..."     comma-separated override (default NY + MD grid)
   --keywords "A,B,..."   comma-separated override (default clinical keywords)
-  --min_days 30          only keep postings ≥ this many days old (0 = all)
+  --min_days             DEPRECATED no-op (see below); date filtering is Phase 1.5's job
   --workers 8            concurrent Apify runs
   --dry_run              print plan only, no Apify calls
   --yes                  skip confirmation prompt
@@ -198,7 +201,11 @@ def main():
     parser.add_argument("--limit", type=int, default=1000, help="Per-combo actor item cap (max 1000)")
     parser.add_argument("--cities", default="", help="Semicolon-separated city override (city names may contain commas e.g. 'Houston, TX;Dallas, TX')")
     parser.add_argument("--keywords", default="", help="Comma-separated keyword override")
-    parser.add_argument("--min_days", type=int, default=30, help="Only keep postings ≥ this many days old (0 = all)")
+    parser.add_argument("--min_days", type=int, default=0,
+                        help="DEPRECATED NO-OP. filter_items() never applied it. "
+                             "All date filtering is done at Phase 1.5 by "
+                             "process_city_scrape.py (35-day window). Kept only "
+                             "so old saved commands do not break.")
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--dry_run", action="store_true")
     parser.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
@@ -222,7 +229,8 @@ def main():
         print(f"           {c}")
     print(f"Combos:    {len(combos)}")
     print(f"Limit:     {limit} per combo  (max items = {len(combos) * limit:,})")
-    print(f"Min days:  {args.min_days} days old (0 = no date filter)")
+    print("Date:      no filter at scrape time — Phase 1.5 applies the "
+          "35-day window")
     print(f"Workers:   {args.workers}")
     print(f"Max size:  no cap (classify_companies.py handles filtering)")
     if args.sheet_url:

@@ -48,7 +48,10 @@ SYSTEM = (
     "You split a person's full name into a first name and a last name for use in "
     "cold-email personalization. Drop honorifics (Dr., Mr., Ms.), drop generational "
     "suffixes (Jr., Sr., II, III) and post-nominals (MD, RN, PA, MBA) from both fields. "
-    "first_name = the given name only. last_name = the family name only. "
+    "first_name = the given name in the casual form a colleague would use — "
+    "common nicknames only (William -> Will, Jennifer -> Jen, Michael -> Mike); "
+    "keep the original when no common nickname exists, never invent. "
+    "last_name = the family name only. "
     "If only one token exists, last_name is empty. "
     "Return strict JSON: {\"results\":[{\"i\":<index>,\"first\":\"\",\"last\":\"\"}, ...]}."
 )

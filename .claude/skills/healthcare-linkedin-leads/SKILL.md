@@ -8,7 +8,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent
 
 ## What This Skill Does
 
-LinkedIn-sourced sibling of `healthcare-leads-indeed`. Instead of scraping Indeed and
+LinkedIn-sourced sibling of `healthcare-demand-pipeline` (formerly healthcare-leads-indeed). Instead of scraping Indeed and
 filtering by posting age, it scrapes LinkedIn job postings and uses **low applicant count**
 (`fewApplicants=True`) as the pain signal — postings few candidates have applied to are where a
 practice is most likely to engage outside help.
@@ -61,7 +61,7 @@ The ingest writes the **29-col schema** shared with `hr-leads-indeed`, so its 29
 correctly: `Company Name=K`, `Company Size=M`, `DM Name=T`, `DM Title=U`, `LinkedIn URL=V`, `Email=W`,
 range `A:AA`.
 
-⚠️ **Do NOT reuse `healthcare-leads-indeed/scripts/find_dm.py` or `enrich_emails.py`.** Despite the
+⚠️ **Do NOT reuse another pipeline's `find_dm.py` or `enrich_emails.py`.** (healthcare-leads-indeed is retired; DM discovery now runs via the `apollo-dm-waterfall` skill.) Despite the
 docs, those files were repurposed for the **staffing-agency schema** (company=C, DM name=E, title=P,
 email=Q, LinkedIn=R, range `A:T`) and will read the wrong columns on a 29-col sheet.
 

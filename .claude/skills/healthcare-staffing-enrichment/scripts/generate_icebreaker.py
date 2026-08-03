@@ -101,7 +101,31 @@ def ensure_headers(service, sheet_id, tab_name):
         ).execute()
 
 
+
+# Casualization (canonical rules: casualize-names skill) — conservative list.
+NICKNAMES = {
+    "William": "Will", "Michael": "Mike", "Christopher": "Chris",
+    "Matthew": "Matt", "Daniel": "Dan", "Benjamin": "Ben",
+    "Nicholas": "Nick", "Alexander": "Alex", "Jonathan": "Jon",
+    "Timothy": "Tim", "Jeffrey": "Jeff", "Gregory": "Greg",
+    "Joshua": "Josh", "Robert": "Rob", "Richard": "Rich",
+    "Thomas": "Tom", "Kenneth": "Ken", "Joseph": "Joe",
+    "Edward": "Ed", "Donald": "Don", "Ronald": "Ron",
+    "Steven": "Steve", "Stephen": "Steve", "David": "Dave",
+    "Douglas": "Doug", "Lawrence": "Larry", "Frederick": "Fred",
+    "Raymond": "Ray", "Jennifer": "Jen", "Elizabeth": "Liz",
+    "Katherine": "Kate", "Kathleen": "Kathy", "Stephanie": "Steph",
+    "Samantha": "Sam", "Jacqueline": "Jackie", "Deborah": "Deb",
+    "Pamela": "Pam", "Cynthia": "Cindy", "Rebecca": "Becca",
+}
+
+
+def casualize_first(name):
+    return NICKNAMES.get((name or "").strip().title(), (name or "").strip())
+
+
 def build_icebreaker(first_name):
+    first_name = casualize_first(first_name)
     return (
         f"hey {first_name},\n\n"
         f"love how you still keep the human side front and center when sourcing candidates, "

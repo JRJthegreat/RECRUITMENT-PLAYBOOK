@@ -13,6 +13,7 @@
 .claude/scheduled_tasks.lock
 .claude/cache/
 .claude/scripts/
+.claude/skills/nppes-new-clinics/data/
 
 # Python
 __pycache__/
@@ -21,6 +22,9 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+
+# Tool session artifacts
+.playwright-mcp/
 
 # OS / editor
 .DS_Store

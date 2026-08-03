@@ -42,6 +42,30 @@ STATIC_ICEBREAKER = (
 )
 
 
+
+# Casualization (canonical rules: casualize-names skill) — conservative,
+# near-universal nicknames only; unknown names pass through unchanged.
+NICKNAMES = {
+    "William": "Will", "Michael": "Mike", "Christopher": "Chris",
+    "Matthew": "Matt", "Daniel": "Dan", "Benjamin": "Ben",
+    "Nicholas": "Nick", "Alexander": "Alex", "Jonathan": "Jon",
+    "Timothy": "Tim", "Jeffrey": "Jeff", "Gregory": "Greg",
+    "Joshua": "Josh", "Robert": "Rob", "Richard": "Rich",
+    "Thomas": "Tom", "Kenneth": "Ken", "Joseph": "Joe",
+    "Edward": "Ed", "Donald": "Don", "Ronald": "Ron",
+    "Steven": "Steve", "Stephen": "Steve", "David": "Dave",
+    "Douglas": "Doug", "Lawrence": "Larry", "Frederick": "Fred",
+    "Raymond": "Ray", "Jennifer": "Jen", "Elizabeth": "Liz",
+    "Katherine": "Kate", "Kathleen": "Kathy", "Stephanie": "Steph",
+    "Samantha": "Sam", "Jacqueline": "Jackie", "Deborah": "Deb",
+    "Pamela": "Pam", "Cynthia": "Cindy", "Rebecca": "Becca",
+}
+
+
+def casualize_first(name):
+    return NICKNAMES.get((name or "").strip().title(), (name or "").strip())
+
+
 def col_to_idx(letter):
     letter = letter.strip().upper()
     idx = 0
@@ -167,7 +191,7 @@ def main():
         if not dm_name or existing:
             continue
         parts      = dm_name.split()
-        first_name = parts[0]
+        first_name = casualize_first(parts[0])
         last_name  = " ".join(parts[1:]) if len(parts) > 1 else ""
         pending.append({
             "row":        i + 2,

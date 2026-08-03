@@ -81,10 +81,33 @@ def render(template, vars_dict):
     return re.sub(r"\{\{\s*(\w+)\s*\}\}", sub, template)
 
 
+
+# Casualization (canonical rules: casualize-names skill) — conservative list.
+NICKNAMES = {
+    "William": "Will", "Michael": "Mike", "Christopher": "Chris",
+    "Matthew": "Matt", "Daniel": "Dan", "Benjamin": "Ben",
+    "Nicholas": "Nick", "Alexander": "Alex", "Jonathan": "Jon",
+    "Timothy": "Tim", "Jeffrey": "Jeff", "Gregory": "Greg",
+    "Joshua": "Josh", "Robert": "Rob", "Richard": "Rich",
+    "Thomas": "Tom", "Kenneth": "Ken", "Joseph": "Joe",
+    "Edward": "Ed", "Donald": "Don", "Ronald": "Ron",
+    "Steven": "Steve", "Stephen": "Steve", "David": "Dave",
+    "Douglas": "Doug", "Lawrence": "Larry", "Frederick": "Fred",
+    "Raymond": "Ray", "Jennifer": "Jen", "Elizabeth": "Liz",
+    "Katherine": "Kate", "Kathleen": "Kathy", "Stephanie": "Steph",
+    "Samantha": "Sam", "Jacqueline": "Jackie", "Deborah": "Deb",
+    "Pamela": "Pam", "Cynthia": "Cindy", "Rebecca": "Becca",
+}
+
+
+def casualize_first(name):
+    return NICKNAMES.get((name or "").strip().title(), (name or "").strip())
+
+
 def first_name_from(full_name, fallback="there"):
     if not full_name or not full_name.strip():
         return fallback
-    return full_name.strip().split()[0]
+    return casualize_first(full_name.strip().split()[0])
 
 
 CLEAN_PROMPT = """Clean these business names for use in casual cold emails. Apply these rules carefully:

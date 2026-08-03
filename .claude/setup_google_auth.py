@@ -8,7 +8,7 @@ with open('/Users/air/Downloads/client_secret_453822230599-f89tbo2edqd8l1pqrolqk
 CLIENT_ID = cfg['client_id']
 CLIENT_SECRET = cfg['client_secret']
 REDIRECT_URI = 'http://localhost:8080/'
-SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents'
+SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/calendar.readonly'
 
 state = secrets.token_urlsafe(16)
 auth_url = (

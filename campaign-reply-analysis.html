@@ -1,0 +1,942 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>*{margin:0;padding:0;box-sizing:border-box}img{max-width:100%}</style>
+<title>Healthcare Demand Campaigns — Reply Analysis</title>
+
+<style>
+  :root {
+    color-scheme: light;
+    --paper:      #F1F2F6;
+    --surface:    #FFFFFF;
+    --surface-2:  #F7F8FB;
+    --ink:        #15161D;
+    --ink-2:      #3D4050;
+    --muted:      #666B7E;
+    --hair:       #E0E2EA;
+    --hair-soft:  #EDEEF3;
+    --accent:     #4a3aa7;
+    --accent-dim: #4a3aa71f;
+    --good:       #16794f;
+    --good-dim:   #16794f1a;
+    --bad:        #c2410c;
+    --bad-dim:    #c2410c1a;
+    --bar:        #C6C9D6;
+
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --paper:      #101118;
+      --surface:    #191B23;
+      --surface-2:  #1F212B;
+      --ink:        #ECEDF3;
+      --ink-2:      #C3C6D4;
+      --muted:      #979CB0;
+      --hair:       #2B2E3A;
+      --hair-soft:  #23262F;
+      --accent:     #9085e9;
+      --accent-dim: #9085e926;
+      --good:       #1baf7a;
+      --good-dim:   #1baf7a24;
+      --bad:        #d95926;
+      --bad-dim:    #d9592624;
+      --bar:        #3A3E4D;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --paper:      #101118;
+    --surface:    #191B23;
+    --surface-2:  #1F212B;
+    --ink:        #ECEDF3;
+    --ink-2:      #C3C6D4;
+    --muted:      #979CB0;
+    --hair:       #2B2E3A;
+    --hair-soft:  #23262F;
+    --accent:     #9085e9;
+    --accent-dim: #9085e926;
+    --good:       #1baf7a;
+    --good-dim:   #1baf7a24;
+    --bad:        #d95926;
+    --bad-dim:    #d9592624;
+    --bar:        #3A3E4D;
+  }
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --paper:      #F1F2F6;
+    --surface:    #FFFFFF;
+    --surface-2:  #F7F8FB;
+    --ink:        #15161D;
+    --ink-2:      #3D4050;
+    --muted:      #666B7E;
+    --hair:       #E0E2EA;
+    --hair-soft:  #EDEEF3;
+    --accent:     #4a3aa7;
+    --accent-dim: #4a3aa71f;
+    --good:       #16794f;
+    --good-dim:   #16794f1a;
+    --bad:        #c2410c;
+    --bad-dim:    #c2410c1a;
+    --bar:        #C6C9D6;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }
+
+  /* ---------- header ---------- */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(30px, 4.6vw, 44px);
+    line-height: 1.12;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 10px 0 14px;
+  }
+  .standfirst {
+    font-size: 17px;
+    color: var(--ink-2);
+    max-width: 62ch;
+  }
+  .stamp {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--hair);
+  }
+
+  /* ---------- sections ---------- */
+  section { display: flex; flex-direction: column; gap: 16px; }
+  h2 {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 650;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  p { max-width: 68ch; color: var(--ink-2); }
+  .sec-head { display: flex; flex-direction: column; gap: 6px; }
+
+  /* ---------- cards ---------- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-radius: 4px;
+    padding: 22px;
+  }
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+
+  .camp-name {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .camp-sub { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px 12px;
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid var(--hair-soft);
+  }
+  .metric-label {
+    font-size: 11px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 3px;
+  }
+  .metric-val {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+  }
+  .metric-val .unit { font-size: 13px; color: var(--muted); margin-left: 3px; }
+  .metric-val.hi { color: var(--accent); }
+
+  /* ---------- chart ---------- */
+  .chart {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    align-items: end;
+    height: 240px;
+    margin-top: 8px;
+  }
+  .chart.five, .axis.five { grid-template-columns: repeat(5, 1fr); }
+  .col.warm .bar { background: var(--good); }
+  .col.warm .col-val { color: var(--good); }
+  .axis div.warm { color: var(--good); font-weight: 600; }
+  .col { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; gap: 8px; }
+  .col-val {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    color: var(--ink-2);
+  }
+  .col.on .col-val { color: var(--accent); }
+  .bar {
+    background: var(--bar);
+    border-radius: 4px 4px 0 0;
+    min-height: 2px;
+    transition: filter .15s ease;
+  }
+  .col.on .bar { background: var(--accent); }
+  .col.none .bar {
+    background: repeating-linear-gradient(135deg, var(--hair) 0 4px, transparent 4px 8px);
+    border: 1px dashed var(--hair);
+    border-bottom: none;
+  }
+  .col:hover .bar { filter: brightness(1.08); }
+  .axis {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    border-top: 1px solid var(--hair);
+    padding-top: 8px;
+  }
+  .axis div {
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .axis div.on { color: var(--accent); font-weight: 600; }
+  .axis small { display: block; font-size: 10px; opacity: .75; }
+
+  /* ---------- callout ---------- */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-dim);
+    padding: 16px 18px;
+    border-radius: 0 4px 4px 0;
+  }
+  .callout.warn { border-left-color: var(--bad); background: var(--bad-dim); }
+  .callout p { margin: 0; max-width: 74ch; color: var(--ink-2); }
+  .callout strong { color: var(--ink); }
+
+  /* ---------- table ---------- */
+  .scroller { overflow-x: auto; border: 1px solid var(--hair); border-radius: 4px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 860px; }
+  th, td {
+    text-align: left;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--hair-soft);
+    vertical-align: top;
+  }
+  thead th {
+    font-size: 10.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 650;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--hair);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--surface-2); }
+  .who { font-weight: 600; color: var(--ink); }
+  .org { color: var(--ink-2); }
+  .role, .when { font-family: var(--mono); font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+  .when b { color: var(--ink); font-weight: 600; }
+  .quote { color: var(--muted); font-style: italic; font-size: 13px; max-width: 30ch; }
+
+  .chip {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.03em;
+    padding: 2px 8px;
+    border-radius: 3px;
+    white-space: nowrap;
+    border: 1px solid;
+  }
+  .chip.good { color: var(--good); background: var(--good-dim); border-color: var(--good); }
+  .chip.bad  { color: var(--bad);  background: var(--bad-dim);  border-color: var(--bad); }
+  .chip.neu  { color: var(--muted); background: var(--surface-2); border-color: var(--hair); }
+
+  /* ---------- breakdown lists ---------- */
+  .bd { display: flex; flex-direction: column; gap: 9px; }
+  .bd-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: baseline; }
+  .bd-bar-wrap { display: flex; flex-direction: column; gap: 4px; }
+  .bd-track { height: 6px; background: var(--hair-soft); border-radius: 3px; overflow: hidden; }
+  .bd-fill { height: 100%; background: var(--accent); border-radius: 3px; }
+  .bd-label { font-size: 13.5px; color: var(--ink-2); }
+  .bd-n { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
+
+  ul.flags { display: flex; flex-direction: column; gap: 12px; padding-left: 0; list-style: none; }
+  ul.flags li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    align-items: start;
+    font-size: 14.5px;
+    color: var(--ink-2);
+    max-width: 76ch;
+  }
+  ul.flags .tag {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--bad);
+    border: 1px solid var(--bad);
+    background: var(--bad-dim);
+    border-radius: 3px;
+    padding: 2px 7px;
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+  ul.flags strong { color: var(--ink); }
+
+  .method { font-size: 13.5px; color: var(--muted); max-width: 78ch; }
+  .method code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--surface-2);
+    border: 1px solid var(--hair-soft);
+    border-radius: 3px;
+    padding: 1px 5px;
+  }
+  hr { border: none; border-top: 1px solid var(--hair); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">NEXAM AI · Instantly · demand side</div>
+    <h1>Two healthcare campaigns, 13 people who wrote back</h1>
+    <p class="standfirst">
+      Every human reply from the Indiana and Texas demand campaigns, with the practice type,
+      location and exact timing attached. Three findings come out of it: target the owner,
+      reach them inside 30 days of the posting, and send on a Saturday. Only the first two
+      clear statistical significance.
+    </p>
+    <div class="stamp">
+      Pulled from Instantly 31 Jul 2026 · Indiana live since 14 Jul · Texas live since 22 Jul · both still sending
+    </div>
+  </header>
+
+  <!-- ============ CAMPAIGNS ============ -->
+  <section>
+    <div class="sec-head">
+      <h2>Where the two campaigns stand</h2>
+      <p>Open tracking is off on both (text-only sending), so replies are the only engagement signal there is.</p>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="camp-name">Indiana</div>
+        <div class="camp-sub">Brent - B3 Resource solutions · f59f4fa5</div>
+        <div class="metrics">
+          <div>
+            <div class="metric-label">Leads</div>
+            <div class="metric-val">445</div>
+          </div>
+          <div>
+            <div class="metric-label">Emails sent</div>
+            <div class="metric-val">1,755</div>
+          </div>
+          <div>
+            <div class="metric-label">People who replied</div>
+            <div class="metric-val">5</div>
+          </div>
+          <div>
+            <div class="metric-label">Reply rate</div>
+            <div class="metric-val">1.12<span class="unit">%</span></div>
+          </div>
+          <div>
+            <div class="metric-label">Opportunities</div>
+            <div class="metric-val">2</div>
+          </div>
+          <div>
+            <div class="metric-label">Pipeline value</div>
+            <div class="metric-val">$9,000</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="camp-name">Texas</div>
+        <div class="camp-sub">Texas Healthcare Demand - Jul 22 · e54301b8</div>
+        <div class="metrics">
+          <div>
+            <div class="metric-label">Leads</div>
+            <div class="metric-val">408</div>
+          </div>
+          <div>
+            <div class="metric-label">Emails sent</div>
+            <div class="metric-val">1,589</div>
+          </div>
+          <div>
+            <div class="metric-label">People who replied</div>
+            <div class="metric-val">8</div>
+          </div>
+          <div>
+            <div class="metric-label">Reply rate</div>
+            <div class="metric-val hi">1.96<span class="unit">%</span></div>
+          </div>
+          <div>
+            <div class="metric-label">Opportunities</div>
+            <div class="metric-val">3</div>
+          </div>
+          <div>
+            <div class="metric-label">Pipeline value</div>
+            <div class="metric-val">$13,500</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p>
+        <strong>Texas is running at 1.75× Indiana's reply rate</strong> on 8% fewer leads, and it has done
+        it in nine days rather than seventeen. The clearest difference between them: Texas sends
+        under your own name, Indiana sends under invented personas (Raymond Anderson, Joshua Martin,
+        Michael). One Indiana reply is a lead asking <em>"What company are you with? Can you share
+        your LinkedIn?"</em> — a question the Texas copy never provoked.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ THE WEEKEND FINDING ============ -->
+  <section>
+    <div class="sec-head">
+      <h2>The weekend read is right, but it is Saturday <em>sending</em> that does it</h2>
+      <p>
+        Reply rate by the day the triggering email went out, both campaigns combined. Neither
+        campaign sends on Sunday.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>Reply rate by send day</h3>
+      <div class="chart" role="img" aria-label="Reply rate by send day: Monday 0.26 percent, Tuesday 0.41 percent, Wednesday 0 percent, Thursday 0.49 percent, Friday 0.74 percent, Saturday 0.88 percent, Sunday no sends.">
+        <div class="col" title="Mon — 781 sends, 2 replies"><div class="col-val">0.26%</div><div class="bar" style="height:29.5%"></div></div>
+        <div class="col" title="Tue — 491 sends, 2 replies"><div class="col-val">0.41%</div><div class="bar" style="height:46.6%"></div></div>
+        <div class="col" title="Wed — 620 sends, 0 replies"><div class="col-val">0%</div><div class="bar" style="height:1%"></div></div>
+        <div class="col" title="Thu — 617 sends, 3 replies"><div class="col-val">0.49%</div><div class="bar" style="height:55.7%"></div></div>
+        <div class="col" title="Fri — 270 sends, 2 replies"><div class="col-val">0.74%</div><div class="bar" style="height:84.1%"></div></div>
+        <div class="col on" title="Sat — 565 sends, 5 replies"><div class="col-val">0.88%</div><div class="bar" style="height:100%"></div></div>
+        <div class="col none" title="Sun — no sends scheduled"><div class="col-val">&mdash;</div><div class="bar" style="height:12%"></div></div>
+      </div>
+      <div class="axis">
+        <div>Mon<small>781 sent</small></div>
+        <div>Tue<small>491 sent</small></div>
+        <div>Wed<small>620 sent</small></div>
+        <div>Thu<small>617 sent</small></div>
+        <div>Fri<small>270 sent</small></div>
+        <div class="on">Sat<small>565 sent</small></div>
+        <div>Sun<small>none sent</small></div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p>
+        <strong>Saturday sends reply at 0.88% against 0.32% for every other day — a 2.7× lift.</strong>
+        Sharper still: all three genuinely interested replies arrived Friday, Saturday and Sunday.
+        Nothing sent on a Wednesday has produced a single reply across 620 emails.
+      </p>
+    </div>
+
+    <div class="callout warn">
+      <p>
+        <strong>Hold this loosely — it rests on 14 replies.</strong> A one-sided Fisher exact test on
+        the Saturday lift gives p&nbsp;=&nbsp;0.072, short of significance. Saturday is also confounded
+        with sequence step: much of the Saturday volume is the first follow-up, which is the
+        strongest step regardless of day. The honest read is a promising signal worth a
+        deliberate test, not a settled fact.
+      </p>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>They answer fast or never</h3>
+        <p style="margin-top:10px">
+          Eight of the fourteen replies landed within <strong>45 minutes</strong> of the send.
+          Median lag is 36 minutes. Only two took longer than six hours, the outlier being
+          Doug Dippel's, which came 39 hours after a Saturday morning send and landed at
+          <span class="role">22:22 on a Sunday night</span>.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Which step earns the reply</h3>
+        <div class="bd" style="margin-top:12px">
+          <div class="bd-bar-wrap">
+            <div class="bd-row"><span class="bd-label">Step 2 — first bump</span><span class="bd-n">8</span></div>
+            <div class="bd-track"><div class="bd-fill" style="width:100%"></div></div>
+          </div>
+          <div class="bd-bar-wrap">
+            <div class="bd-row"><span class="bd-label">Step 1 — opener</span><span class="bd-n">3</span></div>
+            <div class="bd-track"><div class="bd-fill" style="width:37.5%"></div></div>
+          </div>
+          <div class="bd-bar-wrap">
+            <div class="bd-row"><span class="bd-label">Step 3 — second bump</span><span class="bd-n">3</span></div>
+            <div class="bd-track"><div class="bd-fill" style="width:37.5%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ WHO TO AIM AT ============ -->
+  <section>
+    <div class="sec-head">
+      <h2>Aim at the owner. The data now says this outright.</h2>
+      <p>
+        Reply rate by the title we actually targeted, measured against all 853 leads emailed —
+        so this is a rate, not a tally of who happened to answer.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>Reply rate by decision-maker title</h3>
+      <div class="bd" style="margin-top:16px">
+        <div class="bd-bar-wrap">
+          <div class="bd-row"><span class="bd-label"><strong>Owner / CEO / Founder</strong> — 330 emailed, 10 replies</span><span class="bd-n">3.03%</span></div>
+          <div class="bd-track"><div class="bd-fill" style="width:100%"></div></div>
+        </div>
+        <div class="bd-bar-wrap">
+          <div class="bd-row"><span class="bd-label">Clinical leader (CMO, Medical/Clinical/Nursing Director) — 303 emailed, 4 replies</span><span class="bd-n">1.32%</span></div>
+          <div class="bd-track"><div class="bd-fill" style="width:43.6%"></div></div>
+        </div>
+        <div class="bd-bar-wrap">
+          <div class="bd-row"><span class="bd-label">COO / Ops / Administrator — 62 emailed, 0 replies</span><span class="bd-n">0.00%</span></div>
+          <div class="bd-track"><div class="bd-fill" style="width:0.6%"></div></div>
+        </div>
+        <div class="bd-bar-wrap">
+          <div class="bd-row"><span class="bd-label">HR / Talent — 25 emailed, 0 replies</span><span class="bd-n">0.00%</span></div>
+          <div class="bd-track"><div class="bd-fill" style="width:0.6%"></div></div>
+        </div>
+        <div class="bd-bar-wrap">
+          <div class="bd-row"><span class="bd-label">Other / unclear — 133 emailed, 0 replies</span><span class="bd-n">0.00%</span></div>
+          <div class="bd-track"><div class="bd-fill" style="width:0.6%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p>
+        <strong>Owners reply 4× more often than every other title combined — 3.03% against 0.76%,
+        Fisher p = 0.013.</strong> That one clears significance, unlike the weekend finding. And the
+        quality gap is starker than the volume gap: all three interested replies came from an owner,
+        while 303 clinical leaders produced zero. One of them wrote back
+        <em>"I have no say in hiring, and I don't know who would be able to help you."</em>
+      </p>
+    </div>
+
+    <div class="callout warn">
+      <p>
+        <strong>COO is not the safe second choice — it is currently the weakest bet on the board.</strong>
+        62 COO, Ops and Administrator contacts produced nothing at all. That is too few to call it
+        disproven, but there is no evidence for pairing CEO with COO. Against clinical leaders alone
+        the owner lift is 2.3× at p = 0.116, so "owner beats clinical" is the direction of travel
+        rather than a settled result; "owner beats everything else" is the finding that holds.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ WHEN THE PAIN PEAKS ============ -->
+  <section>
+    <div class="sec-head">
+      <h2>The pain peaks between two and four weeks after the post</h2>
+      <p>
+        Reply rate by how old the job posting was on the day we first emailed. Posting dates come
+        from column E of each campaign sheet; all 853 leads matched.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>Reply rate by age of posting at first contact</h3>
+      <div class="chart five" role="img" aria-label="Reply rate by posting age: 0 to 14 days 2.19 percent, 15 to 30 days 2.46 percent, 31 to 45 days 1.05 percent, 46 to 60 days 0.68 percent, over 60 days 0 percent.">
+        <div class="col warm" title="0–14 days — 183 emailed, 4 replies"><div class="col-val">2.19%</div><div class="bar" style="height:89%"></div></div>
+        <div class="col warm" title="15–30 days — 285 emailed, 7 replies"><div class="col-val">2.46%</div><div class="bar" style="height:100%"></div></div>
+        <div class="col" title="31–45 days — 191 emailed, 2 replies"><div class="col-val">1.05%</div><div class="bar" style="height:42.7%"></div></div>
+        <div class="col" title="46–60 days — 148 emailed, 1 reply"><div class="col-val">0.68%</div><div class="bar" style="height:27.6%"></div></div>
+        <div class="col" title="60+ days — 46 emailed, 0 replies"><div class="col-val">0%</div><div class="bar" style="height:1%"></div></div>
+      </div>
+      <div class="axis five">
+        <div class="warm">0–14 d<small>183 sent</small></div>
+        <div class="warm">15–30 d<small>285 sent</small></div>
+        <div>31–45 d<small>191 sent</small></div>
+        <div>46–60 d<small>148 sent</small></div>
+        <div>60+ d<small>46 sent</small></div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p>
+        <strong>Everything inside 30 days replies at 2.35%. Everything from 31 to 60 days replies at
+        0.88%</strong> — a 2.7× drop (p = 0.094). Past 60 days, nothing at all from 46 sends. Your
+        60-day window is not wrong, but its back half is close to dead weight: the 46–60 day slice
+        is 148 leads that returned a single reply.
+      </p>
+    </div>
+
+    <div class="callout">
+      <p>
+        <strong>Stack the two rules and you get the segment worth paying for.</strong> An owner or CEO
+        on a posting under 30 days old replies at <strong>4.10%</strong> against 0.91% for everything
+        else — a 4.5× lift at p = 0.005. That segment was only 23% of the list and produced 57% of
+        every reply you got. Two of the three interested replies sit inside it; the third, Jeff at
+        Brite Health Care, was an owner on a 36-day-old post.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ THE REPLIERS ============ -->
+  <section>
+    <div class="sec-head">
+      <h2>Everyone who wrote back</h2>
+      <p>
+        Thirteen people, fourteen messages. Times are local to the lead. A further 16 messages were
+        out-of-office autoresponders and are excluded here.
+      </p>
+    </div>
+
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr>
+            <th>Verdict</th>
+            <th>Who</th>
+            <th>Practice</th>
+            <th>Where</th>
+            <th>Hiring for</th>
+            <th>Replied</th>
+            <th>What they said</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="chip good">Interested</span></td>
+            <td><span class="who">Jeff Krienik</span><br><span class="org">Owner</span></td>
+            <td class="org">Brite Health Care<br><span class="role">healthcare employer</span></td>
+            <td class="role">Katy, TX</td>
+            <td class="role">Respiratory<br>Therapist</td>
+            <td class="when"><b>Fri</b> 24 Jul<br>08:51</td>
+            <td class="quote">"Hiring is a priority" — Brent already engaged on the thread</td>
+          </tr>
+          <tr>
+            <td><span class="chip good">Interested</span></td>
+            <td><span class="who">Brittany DuCharme</span><br><span class="org">CEO</span></td>
+            <td class="org">DuCharme Speech Therapy<br><span class="role">outpatient therapy</span></td>
+            <td class="role">Fort Hood, TX</td>
+            <td class="role">Speech-Language<br>Pathologist</td>
+            <td class="when"><b>Sat</b> 25 Jul<br>13:45</td>
+            <td class="quote">"I would love more information… I'm looking to hire someone very soon!"</td>
+          </tr>
+          <tr>
+            <td><span class="chip good">Interested</span></td>
+            <td><span class="who">Doug Dippel</span><br><span class="org">Chief Executive Officer</span></td>
+            <td class="org">Rolling Plains Memorial Hospital<br><span class="role">hospital</span></td>
+            <td class="role">Sweetwater, TX</td>
+            <td class="role">MRI<br>Technologist</td>
+            <td class="when"><b>Sun</b> 26 Jul<br>22:22</td>
+            <td class="quote">MRI role filled, but has ultrasound and nuclear med needs open</td>
+          </tr>
+          <tr>
+            <td><span class="chip neu">Qualifying us</span></td>
+            <td><span class="who">Jessica Harris</span><br><span class="org">on behalf of the owner</span></td>
+            <td class="org">Marissa Bennett Consulting<br><span class="role">healthcare employer</span></td>
+            <td class="role">Northbrook, IL</td>
+            <td class="role">SLP<br>CCC-SLP</td>
+            <td class="when"><b>Thu</b> 16 Jul<br>11:24</td>
+            <td class="quote">"What company are you with? Can you please share your LinkedIn profile?"</td>
+          </tr>
+          <tr>
+            <td><span class="chip neu">Wrong person</span></td>
+            <td><span class="who">Sarah Scartz</span><br><span class="org">Director of Rehabilitation</span></td>
+            <td class="org">Total Care Therapy<br><span class="role">outpatient therapy</span></td>
+            <td class="role">Avon, IN</td>
+            <td class="role">Occupational<br>Therapist</td>
+            <td class="when"><b>Thu</b> 16 Jul<br>12:26</td>
+            <td class="quote">"I have no say in hiring, and I don't know who would be able to help you"</td>
+          </tr>
+          <tr>
+            <td><span class="chip neu">Wrong person</span></td>
+            <td><span class="who">Gwen</span><br><span class="org">bookkeeper — replied for Patrick</span></td>
+            <td class="org">IV Nutrition<br><span class="role">IV therapy clinic</span></td>
+            <td class="role">Addison, TX</td>
+            <td class="role">Clinic Director<br>(NP)</td>
+            <td class="when"><b>Mon</b> 27 Jul<br>08:26</td>
+            <td class="quote">"I don't believe Patrick still works here" — mailbox now routes to AR</td>
+          </tr>
+          <tr>
+            <td><span class="chip bad">Not interested</span></td>
+            <td><span class="who">Rich Clementi</span><br><span class="org">Founder / CEO</span></td>
+            <td class="org">Access Home Care Solutions<br><span class="role">home health agency</span></td>
+            <td class="role">Indianapolis, IN</td>
+            <td class="role">Intrathecal<br>Infusion Nurse</td>
+            <td class="when"><b>Tue</b> 14 Jul<br>14:52</td>
+            <td class="quote">"We just filled the position"</td>
+          </tr>
+          <tr>
+            <td><span class="chip bad">Not interested</span></td>
+            <td><span class="who">Mazhar Golewale</span><br><span class="org">Medical Director &amp; Psychiatrist</span></td>
+            <td class="org">Suburban Behavioral Health<br><span class="role">healthcare employer</span></td>
+            <td class="role">Oakbrook Terrace, IL</td>
+            <td class="role">PA<br>Psychiatry</td>
+            <td class="when"><b>Tue</b> 14 Jul<br>18:06</td>
+            <td class="quote">"no middleman please"</td>
+          </tr>
+          <tr>
+            <td><span class="chip bad">Not interested</span></td>
+            <td><span class="who">Marla Kushner</span><br><span class="org">Regional VP, Medical Services</span></td>
+            <td class="org">Bicycle Health<br><span class="role">healthcare employer</span></td>
+            <td class="role">Chicago, IL</td>
+            <td class="role">PA / NP<br>East Region</td>
+            <td class="when"><b>Sat</b> 18 Jul<br>11:05</td>
+            <td class="quote">"Stop."</td>
+          </tr>
+          <tr>
+            <td><span class="chip bad">Not interested</span></td>
+            <td><span class="who">Hector Tricas</span><br><span class="org">Owner</span></td>
+            <td class="org">Voltex Physical Therapy<br><span class="role">outpatient therapy</span></td>
+            <td class="role">Austin, TX</td>
+            <td class="role">Physical<br>Therapist</td>
+            <td class="when"><b>Thu</b> 23 Jul<br>07:28</td>
+            <td class="quote">"Not interested, please remove me from your list"</td>
+          </tr>
+          <tr>
+            <td><span class="chip bad">Not interested</span></td>
+            <td><span class="who">Mohammed A. Mohiuddin</span><br><span class="org">CEO &amp; Founder</span></td>
+            <td class="org">HEAL360 House Call<br><span class="role">healthcare employer</span></td>
+            <td class="role">Plano, TX</td>
+            <td class="role">NP<br>OBGYN</td>
+            <td class="when"><b>Fri</b> 24 Jul<br>11:53</td>
+            <td class="quote">"Please don't keep emailing us back to back… We are not in OB GYN Clinic"</td>
+          </tr>
+          <tr>
+            <td><span class="chip bad">Not interested</span></td>
+            <td><span class="who">Karyn Weakliem</span><br><span class="org">Owner</span></td>
+            <td class="org">TheraPeds<br><span class="role">tagged "school districts"</span></td>
+            <td class="role">Houston, TX <span class="chip neu">check</span></td>
+            <td class="role">Speech Language<br>Pathologist</td>
+            <td class="when"><b>Sat</b> 25 Jul<br>12:42</td>
+            <td class="quote">"please remove me"</td>
+          </tr>
+          <tr>
+            <td><span class="chip bad">Not interested</span></td>
+            <td><span class="who">Abigail Moore</span><br><span class="org">SLP, Clinical Director</span></td>
+            <td class="org">Thrive Speech Therapy<br><span class="role">outpatient therapy</span></td>
+            <td class="role">Houston, TX</td>
+            <td class="role">Speech Language<br>Pathologist</td>
+            <td class="when"><b>Mon</b> 27 Jul<br>10:14</td>
+            <td class="quote">"I'm not interested at this time thank you"</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ WHO REPLIES ============ -->
+  <section>
+    <div class="sec-head">
+      <h2>What kind of practice writes back</h2>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>Practice type</h3>
+        <div class="bd" style="margin-top:14px">
+          <div class="bd-bar-wrap">
+            <div class="bd-row"><span class="bd-label">Generic "healthcare employers" bucket</span><span class="bd-n">5</span></div>
+            <div class="bd-track"><div class="bd-fill" style="width:100%"></div></div>
+          </div>
+          <div class="bd-bar-wrap">
+            <div class="bd-row"><span class="bd-label">Outpatient therapy practices</span><span class="bd-n">4</span></div>
+            <div class="bd-track"><div class="bd-fill" style="width:80%"></div></div>
+          </div>
+          <div class="bd-bar-wrap">
+            <div class="bd-row"><span class="bd-label">Home health agency</span><span class="bd-n">1</span></div>
+            <div class="bd-track"><div class="bd-fill" style="width:20%"></div></div>
+          </div>
+          <div class="bd-bar-wrap">
+            <div class="bd-row"><span class="bd-label">Hospital</span><span class="bd-n">1</span></div>
+            <div class="bd-track"><div class="bd-fill" style="width:20%"></div></div>
+          </div>
+          <div class="bd-bar-wrap">
+            <div class="bd-row"><span class="bd-label">IV therapy clinic</span><span class="bd-n">1</span></div>
+            <div class="bd-track"><div class="bd-fill" style="width:20%"></div></div>
+          </div>
+          <div class="bd-bar-wrap">
+            <div class="bd-row"><span class="bd-label">School district</span><span class="bd-n">1</span></div>
+            <div class="bd-track"><div class="bd-fill" style="width:20%"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Discipline being hired</h3>
+        <div class="bd" style="margin-top:14px">
+          <div class="bd-bar-wrap">
+            <div class="bd-row"><span class="bd-label">Speech-Language Pathologist</span><span class="bd-n">4</span></div>
+            <div class="bd-track"><div class="bd-fill" style="width:100%"></div></div>
+          </div>
+          <div class="bd-bar-wrap">
+            <div class="bd-row"><span class="bd-label">Nurse Practitioner / PA</span><span class="bd-n">4</span></div>
+            <div class="bd-track"><div class="bd-fill" style="width:100%"></div></div>
+          </div>
+          <div class="bd-bar-wrap">
+            <div class="bd-row"><span class="bd-label">PT / OT</span><span class="bd-n">2</span></div>
+            <div class="bd-track"><div class="bd-fill" style="width:50%"></div></div>
+          </div>
+          <div class="bd-bar-wrap">
+            <div class="bd-row"><span class="bd-label">Nursing (infusion)</span><span class="bd-n">1</span></div>
+            <div class="bd-track"><div class="bd-fill" style="width:25%"></div></div>
+          </div>
+          <div class="bd-bar-wrap">
+            <div class="bd-row"><span class="bd-label">Respiratory Therapist</span><span class="bd-n">1</span></div>
+            <div class="bd-track"><div class="bd-fill" style="width:25%"></div></div>
+          </div>
+          <div class="bd-bar-wrap">
+            <div class="bd-row"><span class="bd-label">Imaging (MRI)</span><span class="bd-n">1</span></div>
+            <div class="bd-track"><div class="bd-fill" style="width:25%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p>
+        <strong>Owners and CEOs answer; clinical middle management does not.</strong> Nine of the
+        thirteen repliers carry an Owner, CEO or Founder title, and all three interested replies came from that
+        group. The two people who told us they could not help were a Director of Rehabilitation and
+        a bookkeeper. Speech-language pathology is the single most responsive discipline at four of
+        thirteen, and it produced the warmest reply in either campaign.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ DATA QUALITY ============ -->
+  <section>
+    <div class="sec-head">
+      <h2>What the replies expose about the lists</h2>
+      <p>Every item below came out of a reply, so each one is a confirmed defect rather than a suspicion.</p>
+    </div>
+
+    <ul class="flags">
+      <li>
+        <span class="tag">geography</span>
+        <span><strong>Three of the five Indiana repliers are Illinois companies</strong> — Northbrook,
+        Oakbrook Terrace and Chicago. Chicago-metro spill is expected from a north-west Indiana city
+        grid, but Northbrook and Chicago proper are not Brent's patch, and one of them replied
+        "Stop."</span>
+      </li>
+      <li>
+        <span class="tag">role match</span>
+        <span><strong>HEAL360 was pitched an OBGYN nurse practitioner and answered "We are not in OB
+        GYN Clinic."</strong> The job title came off the posting, so either the posting was
+        mis-parsed or it was stale.</span>
+      </li>
+      <li>
+        <span class="tag">cadence</span>
+        <span><strong>"Please don't keep emailing us back to back."</strong> Same lead. Worth checking
+        the gap between step 1 and step 2 on the Texas sequence — the reply came the day after the
+        opener.</span>
+      </li>
+      <li>
+        <span class="tag">DM targeting</span>
+        <span><strong>Two of thirteen replies were the wrong person entirely</strong> — a Director of
+        Rehabilitation with no hiring say, and a mailbox belonging to someone who had left. That is
+        the practice-manager failure mode the playbook already bans, showing up one level higher.</span>
+      </li>
+      <li>
+        <span class="tag">enrichment</span>
+        <span><strong>TheraPeds is filed as a Houston, TX "school district"</strong> but replies from
+        <span class="role">therapedsofcolorado.com</span> and its site is therapedspartners.com.
+        Three fields disagree on one row.</span>
+      </li>
+      <li>
+        <span class="tag">classification</span>
+        <span><strong>Five of thirteen repliers sit in the generic "healthcare employers" bucket</strong>,
+        the fallback value. Employer type is driving copy, so a fallback that common is diluting the
+        personalization on roughly a third of sends.</span>
+      </li>
+      <li>
+        <span class="tag">deliverability</span>
+        <span><strong>17 bounces across the two campaigns</strong> (6 Indiana, 11 Texas) against
+        853 leads — about 2%. Acceptable, but Texas is running at double Indiana's rate.</span>
+      </li>
+    </ul>
+  </section>
+
+  <hr>
+
+  <section>
+    <h3>How these numbers were produced</h3>
+    <p class="method">
+      Pulled from the Instantly v2 API on 31 Jul 2026: campaign analytics, all
+      <code>email_type=received</code> messages, and the full lead records for both campaigns, joined
+      on the lead address recorded against each reply. Autoresponders were separated from human
+      replies with subject-level and body-level rules kept deliberately apart, because
+      "Thanks for reaching out" is an autoresponder in a subject line and a real human opener in a
+      body — Brittany DuCharme's positive reply starts that way. The split was then reconciled
+      against Instantly's own <code>reply_count_automatic</code>: 16 automatic and 14 human messages,
+      matching the platform exactly on both campaigns. Two further messages in the received feed are
+      Brent's own replies on threads he was CC'd into and are excluded. Reply timestamps are
+      converted to each campaign's local timezone before any day-of-week or hour is assigned.
+    </p>
+  </section>
+
+</div>
+</body>
+</html>

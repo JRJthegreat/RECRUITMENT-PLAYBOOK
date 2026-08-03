@@ -1,0 +1,123 @@
+{
+  "_comment": "VOLUME-FIRST config (Jude, 2026-07-23: 'any medical clinic is a viable target. I need volume. let the data decide'). Philosophy: broad include + denylist. _denylist prefixes are dropped outright (non-clinics). Named categories give clean labels/tiers to known segments — order matters, first match wins, precise codes before broad prefixes. Anything NPI-2 not denied and not matched lands in the other_medical catch-all. NEVER use bare '2084' or '207R' expecting psychiatry/IM — they are whole-board prefixes (neurology, cardiology...); those now land in specialty_physicians where they belong.",
+  "_denylist": [
+    "332B", "331L", "332G", "332H", "332S", "332U", "335G", "335E", "335V", "335U",
+    "3333", "3329", "3336", "332000000X", "332100000X", "332800000X",
+    "34",
+    "302F00000X", "302R00000X", "305R00000X", "305S00000X",
+    "291", "292", "293",
+    "251B00000X", "251K00000X", "251300000X", "253J00000X", "251X00000X", "251V00000X", "251C00000X",
+    "261QM11", "261QV0200X", "261QP0904X", "261QP0905X", "261QS1000X", "261QP2400X",
+    "261QR1100X", "261QL0400X", "261QR0207X", "261QR0208X", "261QC0050X",
+    "2865", "2873", "3174", "282J00000X",
+    "177F00000X", "174200000X",
+    "385H", "311Z", "3206", "3207", "3209", "275N", "273",
+    "2257"
+  ],
+  "family_medicine": {
+    "label": "Family Medicine",
+    "shortage": "high",
+    "codes": ["207Q"]
+  },
+  "internal_medicine": {
+    "label": "Internal Medicine (primary care)",
+    "shortage": "moderate",
+    "codes": ["207R00000X", "207RG0300X"]
+  },
+  "pediatrics": {
+    "label": "Pediatrics",
+    "shortage": "moderate",
+    "codes": ["2080"]
+  },
+  "psychiatry_behavioral": {
+    "label": "Psychiatry / Behavioral Health Clinic",
+    "shortage": "high",
+    "codes": ["2084P08", "2084P0015X", "2084F0202X", "2084A0401X", "2084B0040X", "261QM0801X", "261QM0850X", "261QM0855X", "251S00000X", "323P00000X"]
+  },
+  "obgyn": {
+    "label": "Obstetrics & Gynecology",
+    "shortage": "high",
+    "codes": ["207V"]
+  },
+  "dermatology": {
+    "label": "Dermatology",
+    "shortage": "moderate",
+    "codes": ["207N"]
+  },
+  "np_pa_clinic": {
+    "label": "NP / PA Clinic",
+    "shortage": "moderate",
+    "codes": ["363L", "363A"]
+  },
+  "urgent_care": {
+    "label": "Urgent Care",
+    "shortage": "high",
+    "codes": ["261QU0200X"]
+  },
+  "group_practice": {
+    "label": "Multi / Single Specialty Group",
+    "shortage": "moderate",
+    "codes": ["193200000X", "193400000X"]
+  },
+  "mental_health_counseling": {
+    "label": "Mental Health / Counseling Practice",
+    "shortage": "moderate",
+    "codes": ["101Y", "1041", "103T", "103K", "103G", "106H", "106E", "106S"]
+  },
+  "home_health_hospice": {
+    "label": "Home Health / Hospice / Home Care",
+    "shortage": "high",
+    "codes": ["251E", "251F", "251G", "315D", "251J", "251T", "253Z"]
+  },
+  "facilities_ltc": {
+    "label": "SNF / Assisted Living / Long-Term Care",
+    "shortage": "moderate",
+    "codes": ["3140", "313M", "3104", "3115"]
+  },
+  "behavioral_facilities": {
+    "label": "Behavioral / SUD Residential Facility",
+    "shortage": "moderate",
+    "codes": ["3208", "3245", "322D", "3105", "315P"]
+  },
+  "dental": {
+    "label": "Dental Practice / Clinic",
+    "shortage": "moderate",
+    "codes": ["1223", "122300000X", "124Q", "261QD0000X", "261QS0112X"]
+  },
+  "therapy_rehab": {
+    "label": "PT / OT / SLP / Rehab",
+    "shortage": "low",
+    "codes": ["2251", "225X", "235Z", "231H", "261QR04", "252Y"]
+  },
+  "vision": {
+    "label": "Optometry / Eye Care",
+    "shortage": "low",
+    "codes": ["152W"]
+  },
+  "chiropractic": {
+    "label": "Chiropractic",
+    "shortage": "low",
+    "codes": ["111N"]
+  },
+  "hospitals": {
+    "label": "Hospital",
+    "shortage": "low",
+    "codes": ["28"]
+  },
+  "specialty_physicians": {
+    "label": "Specialty Physician Practice",
+    "shortage": "moderate",
+    "codes": ["20"]
+  },
+  "clinic_center": {
+    "label": "Clinic/Center (incl. ASC, dialysis, imaging, infusion)",
+    "shortage": "moderate",
+    "codes": ["261Q"]
+  },
+  "other_medical": {
+    "label": "Other Medical Organization",
+    "shortage": "low",
+    "catch_all": true,
+    "codes": []
+  }
+}

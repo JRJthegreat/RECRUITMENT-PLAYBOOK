@@ -1,0 +1,27 @@
+{
+  "states": "ALL",
+  "window_days": 90,
+  "name_similarity_threshold": 0.82,
+  "scoring": {
+    "classification": {
+      "NEW_INDEPENDENT": 5,
+      "HEALTH_SYSTEM_EXPANSION": 5,
+      "NEW_LOCATION": 3,
+      "LIKELY_ADMIN": -5,
+      "UNCERTAIN": 0
+    },
+    "enum_age_buckets": [[30, 3], [60, 2], [90, 1]],
+    "shortage": {"high": 3, "moderate": 2, "low": 0},
+    "ao_title_owner": 2,
+    "not_subpart": 2,
+    "novel_address": 2,
+    "email_enriched": 1,
+    "solo_name_match": -3
+  },
+  "owner_title_keywords": ["OWNER", "PRESIDENT", "CEO", "FOUNDER", "MEDICAL DIRECTOR", "PHYSICIAN", "MANAGING MEMBER", "MANAGING PARTNER", "PRINCIPAL"],
+  "nucc_csv_urls": [
+    "https://www.nucc.org/images/stories/CSV/nucc_taxonomy_270.csv",
+    "https://www.nucc.org/images/stories/CSV/nucc_taxonomy_261.csv",
+    "https://www.nucc.org/images/stories/CSV/nucc_taxonomy_251.csv"
+  ]
+}

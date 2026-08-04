@@ -192,7 +192,7 @@ VARIANT_B = """Hi {first}
 
 Saw {company} registered a new location in {city}.
 
-I have recruiters who help {gtype} staff new sites, and a couple have bandwidth right now. Figured this could be relevant given the expansion in {city}.
+I have recruiters who help {gtype} staff new sites, and a couple have bandwidth right now. Figured this could be relevant given the expansion.
 
 Are you thinking about hiring for the new location in the next 60 to 90 days?"""
 

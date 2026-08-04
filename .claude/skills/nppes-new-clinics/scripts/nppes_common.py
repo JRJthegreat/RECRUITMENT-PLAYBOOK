@@ -117,6 +117,7 @@ def get_db():
       addr_is_novel INTEGER,
       name_similarity REAL, name_match_npi TEXT, name_match_name TEXT,
       solo_flag INTEGER, solo_reason TEXT,
+      owner_site_count INTEGER,
       classified_at TEXT,
       domain TEXT, email TEXT, email_source TEXT, email_verified TEXT,
       outreach_channel TEXT,

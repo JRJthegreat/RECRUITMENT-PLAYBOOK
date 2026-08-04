@@ -154,6 +154,11 @@ def score_row(p, cls, addr_nov, solo, settings, allowlist):
         score += w["email_enriched"]
     if solo:
         score += w["solo_name_match"]
+    # multi-site owner = group opening locations = hot demand, but only in the
+    # growth band; above the ceiling it is an enterprise system with an MSP
+    n_sites = p["owner_site_count"] or 0
+    if w["multi_site_min"] <= n_sites <= w["multi_site_max"]:
+        score += w["multi_site_owner"]
     return score
 
 

@@ -77,8 +77,23 @@ def main():
             pending = 0
     conn.commit()
 
+    # Multi-site owner signal (Saad's playbook): one owner holding several new
+    # NPIs is a group opening locations, i.e. HOT demand. Counted across the
+    # whole store, scored in a band — past ~10 sites it is an enterprise system
+    # (Cleveland Clinic's CFO holds 138), which is MSP-gated, not a warm lead.
+    conn.execute("UPDATE practices SET owner_site_count = NULL")
+    conn.execute("""
+        UPDATE practices SET owner_site_count = (
+          SELECT COUNT(*) FROM practices p2
+          WHERE p2.ao_first = practices.ao_first AND p2.ao_last = practices.ao_last
+        ) WHERE TRIM(COALESCE(ao_last,'')) != ''""")
+    conn.commit()
+    multi = conn.execute(
+        "SELECT COUNT(*) FROM practices WHERE owner_site_count BETWEEN 2 AND 9").fetchone()[0]
+
     summary = (f"{len(rows)} rows: {offed} -> OFF_TAXONOMY, {revived} revived, "
-               f"{retagged} re-categorized, {rekeyed} addr keys recomputed")
+               f"{retagged} re-categorized, {rekeyed} addr keys recomputed, "
+               f"{multi} rows flagged multi-site owner (2-9)")
     print(f"[resync] {summary}{' (DRY RUN)' if args.dry_run else ''}")
     if not args.dry_run:
         log_run(conn, "resync_store", summary)

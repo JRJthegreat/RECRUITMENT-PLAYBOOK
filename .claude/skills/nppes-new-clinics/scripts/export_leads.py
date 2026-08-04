@@ -47,6 +47,7 @@ CSV_COLUMNS = [
     "is_subpart", "parent_org", "address_is_novel", "name_similarity_score",
     "first_seen_date", "run_date",
     "solo_flag", "solo_reason", "ao_credential", "name_match_name",
+    "owner_site_count",
 ]
 
 
@@ -117,6 +118,7 @@ def to_record(p, nucc, today):
         "solo_reason": p["solo_reason"] or "",
         "ao_credential": p["ao_credential"] or "",
         "name_match_name": p["name_match_name"] or "",
+        "owner_site_count": p["owner_site_count"] or 1,
     }
 
 

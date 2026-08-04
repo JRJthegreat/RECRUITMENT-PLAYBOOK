@@ -116,7 +116,39 @@ JUNK_HOSTS = (
     "sunbiz.org", "opencorporates.com", "buzzfile.com", "corporationwiki.com",
     "opengovus.com", "bizprofile.net", "companiesinfo.com", "dandb.com",
     "healthfinder.fl.gov", "npidb.org", "npino.com", "hipaaspace.com",
+    # NPI-registry mirrors. These are the highest-risk false positive on a
+    # list sourced FROM the NPI registry: the page names the practice, the
+    # city and the taxonomy, so it satisfies content verification perfectly
+    # while being a directory. Measured: 12 of 789 resolved domains (1.5%)
+    # on the first healthcare run, all from this family.
+    "opennpi.com", "npiprofile.com", "npino.org", "npiindex.com", "npiscan.com",
+    "npidataservices.com", "npitelehealth.com", "npi-lookup.org", "npilookup.com",
+    "npiregistry.cms.hhs.gov", "healthcare4ppl.com", "medicarelist.com",
+    "medicaidspending.org", "doccafe.com", "opencorpdata.com", "psychologytoday.com",
+    "healthcaresix.com", "npidb.com", "npies.com", "findanpi.com",
+    # Senior-care and home-care referral directories. These dominate organic
+    # results for agency names, and a match here reads as a perfect content
+    # verification (the page names the agency AND its city) while belonging to
+    # a lead-gen company. Live failure: CAREGIVERS ON DEMAND LLC resolved to
+    # aplaceformom.com, and enrichment then returned that directory's CEO.
+    "aplaceformom.com", "caring.com", "seniorly.com", "carelistings.com",
+    "senioradvisor.com", "agingcare.com", "care.com", "seniorcare.com",
+    "assistedliving.com", "seniorliving.com", "homecare.com", "carepathways.com",
+    "medicare.com", "eldercarelink.com", "afterschoolhq.com",
+    # Generic business-profile aggregators
+    "bisprofiles.com", "bizstanding.com", "companytrace.com", "govtribe.com",
+    "opengovwin.com", "usaspending.gov", "cortera.com", "zippia.com",
+    "rocketreach.co", "leadiq.com", "signalhire.com", "lusha.com",
 )
+
+# Secretary-of-State registry mirrors publish one page per registered entity
+# with the legal name and address, which also passes content verification.
+# They are a family, not a fixed list: ohio-corp.com, colorado-corp.com, etc.
+JUNK_HOST_RE = re.compile(
+    r"(^|\.)([a-z]+-corp|corp-[a-z]+)\.com$|"
+    r"(^|\.)(bizfile|sos)\.|"
+    r"\.birdeye\.com$|"
+    r"(^|\.)(opencorporates|corporationwiki|bizapedia)\.", re.I)
 
 # A job-posting page always names the company and its city — which is exactly the
 # content signal this script trusts. On a lead list sourced FROM job ads, that
@@ -166,6 +198,8 @@ def is_junk(host):
     for d in JUNK_HOSTS:
         if h == d or h.endswith("." + d):
             return "directory_or_jobboard"
+    if JUNK_HOST_RE.search(h):
+        return "registry_mirror"
     if h.endswith(".gov"):
         return "government"
     return None
@@ -332,6 +366,9 @@ def main():
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--overwrite", action="store_true")
+    ap.add_argument("--retry_attempted", action="store_true",
+                    help="re-search rows whose status shows a prior exa attempt "
+                         "(default: skip them so --limit reaches FRESH rows)")
     ap.add_argument("--accept_weak", action="store_true",
                     help="also write ok_verify matches (company named on the page "
                          "but no location corroboration). OFF by default — a blank "
@@ -370,6 +407,14 @@ def main():
         if not name:
             continue
         if cell(r, W) and "." in cell(r, W) and not args.overwrite:
+            continue
+        # A prior attempt that ended no_match/ok_verify leaves the website cell
+        # BLANK but stamps the status column — without this check those rows
+        # sit at the top of the sheet and get re-searched (and re-billed) on
+        # every --limit run before any fresh row is reached. Re-attempt them
+        # only with --retry_attempted.
+        if (STA is not None and cell(r, STA).startswith("exa_")
+                and not args.overwrite and not args.retry_attempted):
             continue
         todo.append({"row": i + 2, "company": name,
                      "city": cell(r, CY), "state": cell(r, ST)})

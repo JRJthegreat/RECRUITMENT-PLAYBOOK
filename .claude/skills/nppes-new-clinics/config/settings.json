@@ -16,7 +16,10 @@
     "not_subpart": 2,
     "novel_address": 2,
     "email_enriched": 1,
-    "solo_name_match": -3
+    "solo_name_match": -3,
+    "multi_site_owner": 3,
+    "multi_site_min": 2,
+    "multi_site_max": 9
   },
   "owner_title_keywords": ["OWNER", "PRESIDENT", "CEO", "FOUNDER", "MEDICAL DIRECTOR", "PHYSICIAN", "MANAGING MEMBER", "MANAGING PARTNER", "PRINCIPAL"],
   "nucc_csv_urls": [

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 NEXAM AI's recruitment lead generation system — Claude Code skills and Python scripts that scrape job postings, find decision makers, discover emails, generate personalized outreach, and push leads to Instantly campaigns. All code lives under `.claude/` (skills, agents, auth, env). There are no top-level source files.
 
-**A Google Sheet is the database.** Almost every script reads a sheet, enriches rows in place, and writes back — there is no local model layer, no ORM, no intermediate store. That is why column constants, batch-of-10 writes, and idempotent skip-if-filled logic carry so much weight below. The single exception is `nppes-new-clinics`, which uses SQLite and only exports to a sheet at the end.
+**A Google Sheet is the database.** Almost every script reads a sheet, enriches rows in place, and writes back — there is no local model layer, no ORM, no intermediate store. That is why column constants, batch-of-10 writes, and idempotent skip-if-filled logic carry so much weight below. The single exception is `nppes-new-clinics`, which uses SQLite upstream — though its campaign track then builds a sheet and works it like the rest.
 
 ## All Pipelines
 
@@ -182,7 +182,7 @@ Azure OpenAI env vars: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_O
 - TheirStack pipelines also need: `THEIRSTACK_API_KEY`
 - Apollo waterfall scripts also need: `APOLLO_API_KEY`
 - `exa-website-enrichment` scripts also need: `EXA_API_KEY`
-- `nppes-new-clinics` needs no API key (CMS data is free); it only needs the Google OAuth token for `export_leads.py --to_sheet`
+- `nppes-new-clinics` phases 1-3 need no API key (CMS data is free), only the Google OAuth token for `export_leads.py --to_sheet`. Its campaign track (below) needs `ANYMAILFINDER_API_KEY`, `PURPLE_MAGIC_KEY` (Purple Magic / ConnectorOS — `find_dm_waterfall.py`, `pm_rescue.py`), the Azure OpenAI vars, and `APIFY_API_TOKEN`
 - Google Sheets OAuth: `.claude/token.json` (setup via `.claude/setup_google_auth.py`)
 
 Gitignored and therefore absent on a fresh clone: `.claude/.env`, `.claude/token.json`, `.claude/scripts/` (see below), and `.claude/skills/nppes-new-clinics/data/` (the SQLite store, cached CMS zips, and exports).
@@ -195,6 +195,7 @@ Gitignored and therefore absent on a fresh clone: `.claude/.env`, `.claude/token
 - **Apify LinkedIn company profile:** `pratikdani~linkedin-company-profile-scraper` — fills website/size/description for LinkedIn-sourced pipelines.
 - **AnyMail Finder:** Auth header is `Authorization: {API_KEY}` (no "Bearer"). Two endpoints: `/find-email/person` and `/find-email/decision-maker`. Valid categories: `ceo, engineering, finance, hr, it, logistics, marketing, operations, buyer, sales` (`coo` is NOT valid — use `operations`).
 - **Instantly API v2:** Bearer token auth. Leads added one at a time (no bulk endpoint). `DELETE /leads/{id}` is safe; `DELETE /leads` with a body wipes the **entire campaign**.
+- **Purple Magic (ConnectorOS):** second-lane email provider — base `https://api.connector-os.com/api/email/v2`, Bearer auth (`PURPLE_MAGIC_KEY`). `/find` takes `{firstName,lastName,domain}`; `/decision-makers` takes `{domain}` and returns nobody ~83% of the time on small practices. Different providers fail on different companies, which is why it's run over AMF `not_found` piles rather than instead of AMF.
 - **Google Search actor:** Used by `classify_companies.py`, `find_company_domains.py`, `find_dm.py` — runs via Apify, not direct Google API.
 
 ## DM Verification (Phase 2.5)
@@ -289,6 +290,10 @@ Domain resolution with a proof-on-page gate — its `SKILL.md` is authoritative 
 
 The skill also ships `find_dm_exa.py`, which the SKILL.md does **not** cover (its "ends at column L" claim predates it): a last-resort DM **name** finder for companies both Apollo and AMF /decision-maker dead-end on. GPT-4.1 extracts a name+title from Exa results under the CEO→COO→Medical Director ladder; it writes a name only, never an email — complete the row with `amf_person_fill.py`.
 
+Two behaviors added Aug 2026 (ahead of the SKILL.md):
+- **Junk-domain classes grew from live failures on NPPES-sourced lists.** NPI-registry mirrors are the worst false positive on a list sourced *from* the NPI registry — the page names the practice, city, and taxonomy, so it passes content verification perfectly while being a directory (12 of 789 resolved domains on the first healthcare run). Senior-care referral directories are the same trap for home-care agencies (CAREGIVERS ON DEMAND resolved to aplaceformom.com, and enrichment then returned that directory's CEO). Secretary-of-State registry mirrors are matched by a regex family (`JUNK_HOST_RE`, rejection class `registry_mirror`), not a fixed list.
+- **Prior-attempt rows are skipped by default.** A miss leaves the website cell blank but stamps an `exa_*` status; without the skip those rows sit at the top and get re-searched (re-billed) on every `--limit` run before any fresh row is reached. Pass `--retry_attempted` to deliberately redo them.
+
 ## personalized-icebreakers
 
 Despite the name, this is a **complete retarget campaign pipeline**, not just an icebreaker generator — deep per-lead research (LinkedIn + whole-site crawl) → dossier → icebreaker → full body → its own Instantly push. Built July 2026 for the healthcare retarget. `SKILL.md` has exact commands and the full copy-rule list; `reply-playbook.md` holds Jude's reply ladder for the campaign. All column letters are CLI flags, so it runs against any sheet schema. All LLM calls are Azure OpenAI GPT-4.1.
@@ -334,8 +339,26 @@ Architectural differences that will bite if assumed away:
 - **Filter on Provider Enumeration Date, never on file presence** — weekly files mix new enumerations with updates and deactivation stubs (blank Entity Type Code; drop those first). The first weekly after a monthly release is ~4x normal size from update bloat, not new orgs.
 - **The NPPES API cannot substitute for the bulk files** — no enumeration-date filter (params silently ignored), hard ~1,200-row ceiling with silent duplicate pages past it. API is for per-NPI lookups only.
 - **~45-50% of new org NPIs are solo-clinician PLLCs**, not staffing launches. The solo flag is a score penalty, not a drop. Say "registered", never "opened" — and don't personalize on the practice address, which is often the owner's home.
-- **Validation gate before any enrichment spend:** hand-check 20-30 NEW_INDEPENDENT records with Jude first. Enrichment and outreach are deliberately out of scope for v1; they stay in the existing stack.
+- **Validation gate before any enrichment spend:** hand-check 20-30 NEW_INDEPENDENT records with Jude first. (The v1 "enrichment stays out of scope" rule is retired — the campaign track below now carries enrichment and copy in-skill.)
 - National by design (~950/week raw allowlisted). Single states are too thin to scrape alone (IN ~11/week) — always run national, filter at export.
+- **Multi-site owner signal:** one Authorized Official holding several new NPIs is a group opening locations, i.e. hot demand. `owner_site_count` is computed across the whole store in `resync_store.py` and scored `+multi_site_owner` only inside the 2-9 band — past ~10 sites it's an enterprise system (Cleveland Clinic's CFO holds 138), MSP-gated, not a warm lead. This makes `resync_store.py` matter for scoring, not just for allowlist changes.
+
+### Campaign-execution track (Jul-Aug 2026 — NOT in the SKILL.md; docstrings are the reference)
+
+The store → campaign sheet → verified email → copy path, built as untracked scripts in the same `scripts/` dir. Proven logic from other skills is reused **by import**, never edited — `resolve_domains_batch.py` and `resolve_parent_domains.py` both `importlib`-load `healthcare-demand-pipeline/scripts/find_company_domains.py`, which feeds the LIVE Indiana pipeline and must not be touched.
+
+| Step | Script | Purpose |
+|------|--------|---------|
+| Sheet | `build_campaign_sheet.py` | Older category-priority sheet (psychiatry/behavioral first; `mental_health_counseling` excluded — 1099-therapist practices don't pay placement fees). Random within categories, one row per OWNER, solo/LIKELY_ADMIN excluded |
+| Sheet | `build_commercial_sheet.py` | THE current sheet (scope agreed 2026-08-04): full commercial pool — multi-staff clinics, provider practices, home-care/nursing agencies, facilities IN; solo PLLCs and non-clinical social services OUT. Facility Type (col B) is the per-CODE NUCC display name (never per-prefix — a prefix bucket once swept in a horse stable). Fully shuffled by explicit instruction so reply data, not ordering, decides what works |
+| Domains | `resolve_domains_batch.py` | Same Google-via-Apify + LLM pick as Indiana's `find_company_domains.py`, plus one behavior: misses stamp AB=`fcd_no_match` so reruns reach fresh rows (the original re-Googles the same failures: 400 lookups → 7 new domains on pass two) |
+| Domains | `resolve_parent_domains.py` | For shell-LLC rows ("FAIRVIEW OPCO LLC"), search the Parent Org LBN (col J) instead; writes the parent domain with AB=`parent_domain` — for a health-system site the parent is where buying power lives |
+| Email | `find_ceo_emails.py` | Campaign-sheet layout. AO title owner-like → AMF person (1 credit); else AMF /decision-maker `ceo` (2 credits). `--target N` stops once N valid emails exist |
+| Email | `find_dm_waterfall.py` | Commercial-sheet layout. **The filer is the target — deterministically** (the docstring still describes an LLM gate; the in-code comments dated 2026-08-04 supersede it: the gate was tried and wrongly rejected COOs and Office Managers — filing an NPI is itself evidence of authority). Only support-function titles (`NOT_TARGET` regex: finance, legal, billing, IT, marketing, front desk…) fall through to PM /decision-makers + GPT-5.1 ranking, with a **positive gate** on ranked titles (unknown fails; "Assistant to CEO" can't ride the word CEO through). Col AI records which lane won |
+| Email | `pm_rescue.py` | Purple Magic second lane over AMF `not_found` rows — AMF misses ~65% here because practices registered 30-90 days ago barely exist on the web yet |
+| Copy | `generate_connector_emails.py` | Jude's verbatim templates: Variant A (new practice) / Variant B (new location). `{ptype}`/`{gtype}` come from a fixed NUCC-code map — deterministic, no LLM; generic codes fall back to Jude's generic wording. Casualization embedded; bodies → col Z; `--preview` approval gate applies |
+
+Both sheet builders deliberately place company/website/city/state/status at K/L/R/S/AB — `exa-website-enrichment`'s default flags — so that skill runs against them unmodified. All the standing email rules apply: valid-only, email domain must match the resolved website, free mailboxes rejected, never a name without an email.
 
 ## Agents
 

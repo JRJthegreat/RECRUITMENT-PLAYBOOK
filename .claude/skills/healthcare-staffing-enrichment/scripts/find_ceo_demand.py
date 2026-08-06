@@ -210,6 +210,9 @@ def main():
     ap.add_argument("--tab", required=True)
     ap.add_argument("--target", type=int, default=500)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--retry_pm", action="store_true",
+                    help="run on rows Purple Magic missed (S starts with pm_) "
+                         "instead of untouched rows — the AMF second lane")
     args = ap.parse_args()
 
     if not AMF_API_KEY:
@@ -235,7 +238,8 @@ def main():
         name = (row[COL_NAME] if len(row) > COL_NAME else "").strip()
         status = (row[COL_EMAIL_STATUS] if len(row) > COL_EMAIL_STATUS else "").strip()
         domain = get_domain(row)
-        if name and not status and domain:
+        pending = status.startswith("pm_") if args.retry_pm else not status
+        if name and pending and domain:
             targets.append({"row": i + 2, "name": name, "domain": domain})
     if args.limit:
         targets = targets[:args.limit]

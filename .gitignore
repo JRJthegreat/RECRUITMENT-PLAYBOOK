@@ -13,7 +13,9 @@
 .claude/scheduled_tasks.lock
 .claude/cache/
 .claude/scripts/
+.claude/backups/
 .claude/skills/nppes-new-clinics/data/
+.claude/skills/healthcare-staffing-enrichment/data/
 
 # Python
 __pycache__/

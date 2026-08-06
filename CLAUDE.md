@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 NEXAM AI's recruitment lead generation system — Claude Code skills and Python scripts that scrape job postings, find decision makers, discover emails, generate personalized outreach, and push leads to Instantly campaigns. All code lives under `.claude/` (skills, agents, auth, env). There are no top-level source files.
 
-**A Google Sheet is the database.** Almost every script reads a sheet, enriches rows in place, and writes back — there is no local model layer, no ORM, no intermediate store. That is why column constants, batch-of-10 writes, and idempotent skip-if-filled logic carry so much weight below. The single exception is `nppes-new-clinics`, which uses SQLite upstream — though its campaign track then builds a sheet and works it like the rest.
+**A Google Sheet is the database.** Almost every script reads a sheet, enriches rows in place, and writes back — there is no local model layer, no ORM, no intermediate store. That is why column constants, batch-of-10 writes, and idempotent skip-if-filled logic carry so much weight below. The exceptions are `nppes-new-clinics` and `production-house-leads`, which use SQLite upstream — though both then build sheets and work them like the rest.
 
 ## All Pipelines
 
@@ -30,6 +30,7 @@ Each pipeline is a Claude Code skill with its own `SKILL.md` (authoritative deta
 | `exa-website-enrichment` | Any sheet | Company domain resolution via Exa (proof-on-page gate) + last-resort DM name discovery | Any |
 | `personalized-icebreakers` | Any sheet | Deep-research retarget campaign (LinkedIn + site → icebreaker → body → push) | Any |
 | `nppes-new-clinics` | CMS NPPES bulk files | Newly-registered medical practices (pre-job-ad demand) | All 50 states + DC, filtered at export |
+| `production-house-leads` | Google Maps (Apify) | Commercial video production houses (supply side of the production lane) | LA, NYC, US secondary hubs, Toronto, London, Amsterdam, Berlin |
 
 Utilities: `casualize-names`, `instantly-autoreply`, `add-webhook`, `local-server`. (`classify-leads` and `scrape-leads` are empty leftover directories — ignore them.)
 
@@ -263,6 +264,8 @@ Standalone enrichment **and outreach** skill for healthcare staffing agency shee
 
 **Demand-campaign track** (healthcare recruitment firms as the leads, sourced from an AI Ark export with an A-N schema): `split_by_headcount.py` (splits source into `1-50 EMP` / `50-200 EMP` tabs by col B) → `find_ceo_demand.py` (AMF /decision-maker with domain + company name; appends O:dm_name P:dm_title Q:dm_email R:dm_linkedin S:email_status) → `split_dm_names.py` (GPT-4.1 name split → T/U) → `generate_demand_body.py` (fixed plain-text template, `{first_name}` only → V) → `push_demand_campaign.py` (DRAFT campaign, text-only, daily_limit 500; refuses rows whose email domain doesn't match the website domain; skips duplicate emails both within the push and against rows already pushed anywhere in the tab; leads rejected by Instantly's workspace blocklist get col W = `BLOCKLISTED` and are never retried — resume skips both `TRUE` and `BLOCKLISTED`) → `patch_greeting.py` (one-off post-push copy patcher — updates sheet col V, the Instantly sequence, AND each pushed lead's personalization).
 
+**Expansion-campaign track (Aug 2026 — cloned from the demand track, never parameterized):** a second angle over the same AI Ark firms, framing newly-opened clinics staffing up new locations. Two additions to the pattern above. (1) A **Purple Magic email lane**: `find_ceo_pm_demand.py` is the PM-primary twin of `find_ceo_demand.py` (AMF lane) — `/decision-makers {domain}` → positive owner-like title gate BEFORE the `/find` call → valid + domain-matched email only, appending the same O-S columns but stamping `pm_*` statuses so the AMF and PM lanes stay distinguishable. (2) Cloned copy scripts: `generate_expansion_body.py` (Jude's verbatim expansion template, `{first}`/`{company}` only → col V) and `push_expansion_campaign.py` (DRAFT clone of `push_demand_campaign.py` mirroring the May 25th Supply campaign — subject `Awesome work at {{companyName}}`, "Hi" greetings, "Sent from my iPhone" footer, delays 2/2/5). **Do not edit `generate_demand_body.py`/`push_demand_campaign.py`** — they belong to the completed 1-50 demand campaign.
+
 **SIA one-offs:** `enrich_sia_emails.py` (AMF person endpoint), `enrich_sia_company_dms.py` (AMF /decision-maker for company-only rows), `rescue_sia_dms.py` (Google-search DM discovery then AMF person) — hardwired to the SIA Attendees sheet's own A-L schema.
 
 **Quirks:**
@@ -321,7 +324,7 @@ Phases are split so each is re-runnable alone — retune copy by re-running phas
 
 ## nppes-new-clinics
 
-**The one pipeline that is not a Google-Sheets pipeline.** Everything else in this repo treats a Sheet as the database and enriches rows in place. This one ingests CMS NPPES bulk files into **SQLite** (`data/nppes.db`, WAL, gitignored) and only emits a Sheet/CSV at the export step. Sources demand *before* a practice posts a job ad: a new organization NPI lands 3-8 months before an insurance-accepting clinic opens, 1-3 months before its first staff ad. `SKILL.md` is detailed and authoritative — read it before touching this skill.
+**The first pipeline that is not a Google-Sheets pipeline** (`production-house-leads` later adopted the same model). Everything else in this repo treats a Sheet as the database and enriches rows in place. This one ingests CMS NPPES bulk files into **SQLite** (`data/nppes.db`, WAL, gitignored) and only emits a Sheet/CSV at the export step. Sources demand *before* a practice posts a job ad: a new organization NPI lands 3-8 months before an insurance-accepting clinic opens, 1-3 months before its first staff ad. `SKILL.md` is detailed and authoritative — read it before touching this skill.
 
 | Phase | Script | Purpose |
 |-------|--------|---------|
@@ -357,6 +360,7 @@ The store → campaign sheet → verified email → copy path, built as untracke
 | Email | `find_dm_waterfall.py` | Commercial-sheet layout. **The filer is the target — deterministically** (the docstring still describes an LLM gate; the in-code comments dated 2026-08-04 supersede it: the gate was tried and wrongly rejected COOs and Office Managers — filing an NPI is itself evidence of authority). Only support-function titles (`NOT_TARGET` regex: finance, legal, billing, IT, marketing, front desk…) fall through to PM /decision-makers + GPT-5.1 ranking, with a **positive gate** on ranked titles (unknown fails; "Assistant to CEO" can't ride the word CEO through). Col AI records which lane won |
 | Email | `pm_rescue.py` | Purple Magic second lane over AMF `not_found` rows — AMF misses ~65% here because practices registered 30-90 days ago barely exist on the web yet |
 | Copy | `generate_connector_emails.py` | Jude's verbatim templates: Variant A (new practice) / Variant B (new location). `{ptype}`/`{gtype}` come from a fixed NUCC-code map — deterministic, no LLM; generic codes fall back to Jude's generic wording. Casualization embedded; bodies → col Z; `--preview` approval gate applies |
+| Push | `push_connector_campaign.py` | Phase 5 — DRAFT Instantly campaign "New Clinics Connector - Aug 2026" (tab `Leads`). Per-variant subject via `{{subject_line}}` custom var (`practice staffing` for A / `new location staffing` for B/C); 3-step sequence (day 0/2/5, steps 2-3 blank-subject); signature lives in the SEQUENCE (`{{sendingAccountFirstName}}` + "Sent from my iPhone"), never in the per-lead body. One lead per unique inbox (first row wins, siblings marked DUP), text-only, no sending accounts, blocklist rejections marked `BLOCKLISTED` and never retried |
 
 Both sheet builders deliberately place company/website/city/state/status at K/L/R/S/AB — `exa-website-enrichment`'s default flags — so that skill runs against them unmodified. All the standing email rules apply: valid-only, email domain must match the resolved website, free mailboxes rejected, never a name without an email.
 

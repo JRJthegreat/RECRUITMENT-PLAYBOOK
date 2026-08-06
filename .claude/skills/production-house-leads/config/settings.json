@@ -1,0 +1,27 @@
+{
+  "search_terms": [
+    "video production company",
+    "commercial video production",
+    "film production company",
+    "video production studio",
+    "corporate video production"
+  ],
+  "max_places_per_search": 200,
+  "cost_per_1k_places_usd": 4.0,
+  "export_batch_size": 300,
+  "metros": [
+    {"key": "LA", "label": "Los Angeles", "state": "CA", "country": "us",
+     "queries": ["Los Angeles, CA", "Santa Monica, CA", "Burbank, CA", "Culver City, CA", "Glendale, CA", "Pasadena, CA"]},
+    {"key": "NYC", "label": "New York", "state": "NY", "country": "us",
+     "queries": ["New York, NY", "Brooklyn, NY", "Long Island City, NY", "Jersey City, NJ"]},
+    {"key": "AUS", "label": "Austin", "state": "TX", "country": "us", "queries": ["Austin, TX"]},
+    {"key": "NSH", "label": "Nashville", "state": "TN", "country": "us", "queries": ["Nashville, TN"]},
+    {"key": "CHI", "label": "Chicago", "state": "IL", "country": "us", "queries": ["Chicago, IL"]},
+    {"key": "MIA", "label": "Miami", "state": "FL", "country": "us", "queries": ["Miami, FL"]},
+    {"key": "ATL", "label": "Atlanta", "state": "GA", "country": "us", "queries": ["Atlanta, GA"]},
+    {"key": "TOR", "label": "Toronto", "state": "ON", "country": "ca", "queries": ["Toronto, ON"]},
+    {"key": "LON", "label": "London", "state": "", "country": "gb", "queries": ["London, UK"]},
+    {"key": "AMS", "label": "Amsterdam", "state": "", "country": "nl", "queries": ["Amsterdam, Netherlands"]},
+    {"key": "BER", "label": "Berlin", "state": "", "country": "de", "queries": ["Berlin, Germany"]}
+  ]
+}

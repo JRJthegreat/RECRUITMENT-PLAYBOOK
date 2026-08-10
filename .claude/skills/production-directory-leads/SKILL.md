@@ -82,6 +82,14 @@ python3 -W ignore .claude/skills/production-directory-leads/scripts/export_batch
 
 ## Quirks & gotchas
 
+- **Cloud runs are Cloudflare-blocked (as of 2026-08-10).** On Apify infra
+  the challenge reports "Verification successful" then never releases —
+  reproduced with patchright Chromium AND real Chrome, with US-residential
+  proxy AND sticky sessions. Locally the same code clears it in ~5s every
+  time. **Use `scrape_directory.py --local`** (runs the actor code on this
+  machine, opens a visible Chrome window) until the cloud path is hardened.
+  The actor stays deployed for retry later.
+
 - **Geography (verified 2026-08-10):** ProductionHub is US + Canada only.
   `/uk/england/london` resolves but has zero listings — London, Amsterdam and
   Berlin need LBBonline or a curated pass (not built). Config metros: LA,

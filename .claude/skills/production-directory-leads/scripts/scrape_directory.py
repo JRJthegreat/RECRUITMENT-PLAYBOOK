@@ -25,13 +25,19 @@ Usage:
   # everything in config
   python3 -W ignore .claude/skills/production-directory-leads/scripts/scrape_directory.py
 
+  # local mode: run the actor code on THIS machine instead of Apify cloud
+  # (opens a real Chrome window — that's what clears Cloudflare)
+  python3 -W ignore .claude/skills/production-directory-leads/scripts/scrape_directory.py --local
+
   # fallback: ingest an existing dataset (run fired earlier / from console)
   python3 -W ignore .claude/skills/production-directory-leads/scripts/scrape_directory.py \
       --dataset_id DATASET_ID
 """
 import argparse
+import glob
 import json
 import os
+import subprocess
 import sys
 import time
 
@@ -46,6 +52,33 @@ APIFY_TOKEN = os.environ["APIFY_API_TOKEN"]
 
 POLL_EVERY = 30          # seconds
 RUN_TIMEOUT = 4 * 3600   # listing sweeps are long: many pages × 2 challenge-able loads
+
+# Local-mode: the actor project on Jude's machine (outside this repo).
+ACTOR_DIR = "/Users/air/AIOS - AI OPERATING SYSTEMS/productionhub-directory-actor"
+
+
+def run_local(cfg, targets):
+    """Run the actor code locally (real Chrome clears Cloudflare reliably)."""
+    storage = os.path.join(ACTOR_DIR, "storage")
+    ds_dir = os.path.join(storage, "datasets", "default")
+    if os.path.isdir(ds_dir):
+        for fp in glob.glob(os.path.join(ds_dir, "*.json")):
+            os.remove(fp)
+    kv_dir = os.path.join(storage, "key_value_stores", "default")
+    os.makedirs(kv_dir, exist_ok=True)
+    with open(os.path.join(kv_dir, "INPUT.json"), "w") as f:
+        json.dump({"targets": targets, "maxPagesPerList": cfg["max_pages_per_list"],
+                   "radius": cfg["radius"], "visitProfiles": False}, f)
+    env = dict(os.environ, APIFY_LOCAL_STORAGE_DIR=storage)
+    subprocess.run([os.path.join(ACTOR_DIR, ".venv", "bin", "python"), "-m", "src"],
+                   cwd=ACTOR_DIR, env=env, check=False)
+    items = []
+    for fp in sorted(glob.glob(os.path.join(ds_dir, "*.json"))):
+        with open(fp) as f:
+            it = json.load(f)
+        if isinstance(it, dict) and it.get("profile_id"):
+            items.append(it)
+    return items
 
 
 def start_run(cfg, targets):
@@ -140,6 +173,8 @@ def main():
     ap.add_argument("--metros", default=None, help="comma-separated metro keys (default: all)")
     ap.add_argument("--categories", default=None, help="comma-separated category slugs (default: all)")
     ap.add_argument("--dataset_id", default=None, help="ingest an existing Apify dataset instead of scraping")
+    ap.add_argument("--local", action="store_true",
+                    help="run the actor code on this machine instead of Apify cloud")
     ap.add_argument("--dry_run", action="store_true")
     args = ap.parse_args()
 
@@ -176,13 +211,16 @@ def main():
         print("Dry run — nothing fired.")
         return
 
-    run_id, dataset_id = start_run(cfg, targets)
-    print(f"Actor run {run_id} started (dataset {dataset_id})")
-    status = wait_for_run(run_id)
-    if status != "SUCCEEDED":
-        print(f"Run ended {status} — ingesting whatever landed in the dataset anyway")
-
-    items = fetch_dataset(dataset_id)
+    if args.local:
+        items = run_local(cfg, targets)
+        status = run_id = "LOCAL"
+    else:
+        run_id, dataset_id = start_run(cfg, targets)
+        print(f"Actor run {run_id} started (dataset {dataset_id})")
+        status = wait_for_run(run_id)
+        if status != "SUCCEEDED":
+            print(f"Run ended {status} — ingesting whatever landed in the dataset anyway")
+        items = fetch_dataset(dataset_id)
     before = conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
     upsert(conn, items)
     after = conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]

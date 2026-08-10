@@ -18,33 +18,27 @@ failed:
     careers.hcahealthcare.com and 15 Life Care homes to lcca.com, which makes
     Apollo hand back the SAME corporate person for every one of them.
 
-The rule that survives both: **a domain is only as good as the evidence on the
-page.** So this script never accepts a domain because it looks like the name.
-
-WHAT IS DIFFERENT FROM THE ROOFING SKILL THIS IS MODELLED ON
-------------------------------------------------------------
-That skill requires the company's identity prefix to appear IN the domain
-("Oak Valley Roofing" -> oakvalleyroofing.com) and rejects anything else. That
-rule is right for roofing and wrong for healthcare: practices routinely trade
-under a sister brand or a service+city domain. Two verified-correct examples
-from Jude's own sheet that the prefix rule would have thrown away:
-
-    Easy Reach PT Rehab        -> easyreachchiro.com     (sister brand)
-    Pamela Rowe Speech Therapy -> speechorlando.com      (service + city)
-
-So the prefix-in-domain test is kept only as a FAST PATH, never as a gate.
-Everything that fails it goes to content verification instead of being dropped.
-
-ACCEPTANCE (a domain is written only if one of these holds)
+ACCEPTANCE (rebuilt 2026-08-10, Jude's call: mirror find_company_domains.py)
 -----------------------------------------------------------
-  A. prefix match — the company's first two distinctive words appear in the
-     domain. Cheap, unambiguous, no content needed.        -> status ok_prefix
-  B. content match — the page text names the company (majority of its
-     distinctive tokens) AND corroborates the location (city or state).
-     This is what rescues sister-brand and service+city domains. -> ok_content
-  C. weak match — company named on the page but no location corroboration, or
-     the company name has only one distinctive token. Written, but flagged for
-     a human glance.                                        -> ok_verify
+The first version of this script judged mechanically: prefix-in-domain fast
+path, then token+location content matching. In practice that produced false
+positives and false negatives whenever the domain didn't literally resemble
+the company name (or resembled a namesake's). Jude's tested resolver —
+healthcare-demand-pipeline/find_company_domains.py, which feeds the LIVE
+Indiana pipeline — decides differently: mechanical junk filtering, then
+**GPT-4.1 reads each candidate (domain + title + page text) and picks the
+official site or NONE**. This script now mirrors that decision structure,
+with Exa as the search layer (its 1,200-char page text is richer evidence
+than Google snippets).
+
+What is deliberately KEPT from this script's own history are the mechanical
+guards that fix the LLM-pick failure modes measured above:
+  * careers./jobs. subdomains and job-page URLs rejected before judging
+  * the parent-chain guard — a domain already claimed by a DIFFERENT company
+    on the same sheet is never reused (the 28-HCA-rows trap)
+  * the junk-host list (directories, registries, portfolio hosts)
+
+Statuses: ok_llm (written) / no_match (LLM declined) / the reject classes.
 
 REJECTED OUTRIGHT (never written, with the reason recorded)
 -----------------------------------------------------------
@@ -139,6 +133,15 @@ JUNK_HOSTS = (
     "bisprofiles.com", "bizstanding.com", "companytrace.com", "govtribe.com",
     "opengovwin.com", "usaspending.gov", "cortera.com", "zippia.com",
     "rocketreach.co", "leadiq.com", "signalhire.com", "lusha.com",
+    # Production/creative-vertical directories and portfolio hosts (added for
+    # the production-house lane). productionhub.com is the NPI-mirror trap of
+    # this vertical: the lead list is sourced FROM it, and its profile pages
+    # name the company AND its city. Vimeo/Behance are portfolio hosts every
+    # studio has — never their own site.
+    "productionhub.com", "mandy.com", "staffmeup.com", "imdb.com",
+    "vimeo.com", "behance.net", "peerspace.com", "giggster.com",
+    "clutch.co", "sortlist.com", "expertise.com", "upcity.com",
+    "designrush.com", "themanifest.com", "productionbeast.com",
 )
 
 # Secretary-of-State registry mirrors publish one page per registered entity
@@ -169,18 +172,6 @@ def looks_like_job_page(url, blob):
     return len(set(JOB_TEXT.findall(blob or ""))) >= 3
 CAREERS_SUB = re.compile(r"^(careers?|jobs|apply|talent|recruit|workforce|hiring)\.", re.I)
 
-# Words that carry no identity — they must never be what proves a match.
-GENERIC = {
-    "health", "healthcare", "medical", "medicine", "care", "center", "centre",
-    "clinic", "clinics", "group", "associates", "partners", "services",
-    "service", "institute", "practice", "specialists", "specialist",
-    "solutions", "systems", "system", "physicians", "physician", "doctors",
-    "therapy", "therapies", "rehab", "rehabilitation", "wellness", "family",
-    "community", "regional", "national", "american", "advanced", "premier",
-    "quality", "professional", "comprehensive", "complete", "total", "the",
-    "and", "of", "at", "for", "inc", "llc", "pllc", "pc", "pa", "llp", "ltd",
-    "corp", "corporation", "company", "co", "hospital", "home", "nursing",
-}
 LEGAL = re.compile(r"\b(inc|llc|pllc|p\.?c\.?|p\.?a\.?|llp|ltd|corp|corporation|co)\b\.?", re.I)
 
 
@@ -205,28 +196,6 @@ def is_junk(host):
     return None
 
 
-def words(name):
-    n = LEGAL.sub(" ", (name or "").lower())
-    n = re.sub(r"[^a-z0-9 ]", " ", n)
-    return [w for w in n.split() if w]
-
-
-def distinctive(name):
-    return [w for w in words(name) if w not in GENERIC and len(w) > 2]
-
-
-def identity_prefix(name):
-    """First TWO distinctive words joined, or "" when the name has fewer.
-
-    Two is not arbitrary. "Orlando Health" has one distinctive word ("health"
-    is generic), and a one-word prefix matches anything containing it —
-    orlando.org (the Orlando Economic Partnership) sails straight through.
-    A single distinctive token is not an identity, so such names get no fast
-    path at all and must be proven on page content."""
-    d = distinctive(name)
-    if len(d) < 2:
-        return ""
-    return "".join(d[:2])
 
 
 def exa_search(company, city, state, niche, key, n=6):
@@ -273,19 +242,79 @@ def exa_search(company, city, state, niche, key, n=6):
     return d.get("results", []), (d.get("costDollars") or {}).get("total", 0.0) or 0.0, None
 
 
-def judge(company, city, state, results, taken):
-    """Pick a domain, or return ('', reason). Never guesses."""
-    toks = distinctive(company)
-    prefix = identity_prefix(company)
-    city_l, state_l = (city or "").lower(), (state or "").lower()
-    weak = None
+# ---- LLM pick, mirroring find_company_domains.py -------------------------
+# Same decision structure, same conservative NONE-leaning rules, same
+# answer-must-be-a-candidate constraint. Differences: candidates carry Exa's
+# page-text excerpt (richer than a Google snippet), and the model is told the
+# company's location so namesakes in other cities get NONE'd.
 
+AZ_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+AZ_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+AZ_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
+AZ_MODEL = os.getenv("AZURE_OPENAI_DEPLOYMENT_FAST", "gpt-4.1")
+
+LLM_SYSTEM = (
+    "You identify a company's official website from web search results. "
+    "You will receive a company name, its location, and numbered candidate "
+    "results (domain + title + page text excerpt). Reply with ONLY the bare "
+    "domain of the official site (e.g. 'example.com') or the word NONE. "
+    "Rules:\n"
+    "- Pick the company's own corporate/brand website, not third-party listings.\n"
+    "- Reject directories, review sites, job boards, company registries, social media.\n"
+    "- The domain does NOT have to contain the company name: sister brands, "
+    "acronyms and service+city domains are fine IF the page text clearly names "
+    "the company.\n"
+    "- If the top candidates refer to a different company (name collision), reply NONE.\n"
+    "- If the page places the company somewhere incompatible with the given "
+    "location (a namesake elsewhere), reply NONE.\n"
+    "- If no candidate is clearly the official site, reply NONE."
+)
+
+
+def llm_pick_domain(company, city, state, candidates):
+    """Ask GPT-4.1 to pick the official website from pre-filtered candidates.
+    Returns the chosen bare domain (guaranteed to be one of the candidates),
+    or ''."""
+    if not candidates or not AZ_ENDPOINT:
+        return ""
+    loc = ", ".join(x for x in [city, state] if x) or "unknown"
+    lines = [f"Company: {company}", f"Location: {loc}", "", "Candidates:"]
+    for i, c in enumerate(candidates, 1):
+        lines.append(f"{i}. {c['domain']}")
+        lines.append(f"   Title: {c['title'][:150]}")
+        lines.append(f"   Page text: {c['text'][:300]}")
+    lines.append("")
+    lines.append("Reply with ONLY the bare domain or NONE.")
+    try:
+        resp = requests.post(
+            f"{AZ_ENDPOINT}/openai/deployments/{AZ_MODEL}/chat/completions",
+            params={"api-version": AZ_VERSION},
+            headers={"api-key": AZ_KEY, "Content-Type": "application/json"},
+            json={"messages": [{"role": "system", "content": LLM_SYSTEM},
+                               {"role": "user", "content": "\n".join(lines)}],
+                  "max_completion_tokens": 60,
+                  "temperature": 0},
+            timeout=60)
+        if resp.status_code != 200:
+            return ""
+        answer = (resp.json()["choices"][0]["message"]["content"] or "").strip().lower()
+        answer = re.sub(r"^https?://", "", answer).split("/")[0].strip().strip(".,'\"`")
+        answer = re.sub(r"^www\.", "", answer)
+        if not answer or answer == "none" or "." not in answer:
+            return ""
+        return answer if answer in {c["domain"] for c in candidates} else ""
+    except Exception:
+        return ""
+
+
+def judge(company, city, state, results, taken):
+    """Mechanically prefilter Exa results, then let GPT-4.1 pick — or NONE."""
+    candidates, seen = [], set()
     for item in results:
         dom = norm_domain(item.get("url", ""))
-        if not dom or "." not in dom:
+        if not dom or "." not in dom or dom in seen:
             continue
-        why_junk = is_junk(dom)
-        if why_junk:
+        if is_junk(dom):
             continue
         url_full = item.get("url", "")
         blob_raw = ((item.get("title") or "") + " " + (item.get("text") or ""))
@@ -297,44 +326,15 @@ def judge(company, city, state, results, taken):
         owner = taken.get(dom)
         if owner and owner.lower() != (company or "").lower():
             continue
+        seen.add(dom)
+        candidates.append({"domain": dom,
+                           "title": item.get("title") or "",
+                           "text": item.get("text") or ""})
 
-        bare = dom.replace("-", "")
-        # A0. EXACT full-name match — the registrable name IS the company name.
-        # Conclusive on its own, no location needed: "The Neurology Institute" ->
-        # theneurologyinstitute.com cannot be a coincidence, whereas a single
-        # shared token ("orlando" in orlando.org) trivially can. Compared both
-        # with and without the legal suffix, since "No Limits Therapy, Inc." ->
-        # nolimitstherapyinc.com keeps the "inc".
-        root_name = bare.rsplit(".", 1)[0] if "." in bare else bare
-        full_legal = "".join(re.sub(r"[^a-z0-9 ]", " ", (company or "").lower()).split())
-        full_clean = "".join(words(company))
-        if root_name and root_name in (full_legal, full_clean):
-            return dom, "ok_exact_name"
-
-        # A. fast path — identity prefix (2+ distinctive words) visible in the
-        # domain. Empty prefix means the name was too thin to be an identity.
-        if prefix and len(prefix) >= 6 and prefix in bare:
-            return dom, "ok_prefix"
-
-        # B. content path — the page must name the company AND place it
-        blob = ((item.get("title") or "") + " " + (item.get("text") or "")).lower()
-        if not blob.strip():
-            continue
-        hit = [t for t in toks if t in blob]
-        named = toks and len(hit) >= max(1, (len(toks) + 1) // 2)
-        located = bool((city_l and city_l in blob) or (state_l and state_l in blob))
-        if named and located and len(toks) >= 2:
-            return dom, "ok_content"
-        if named and weak is None:
-            weak = dom      # remember, but keep looking for something stronger
-
-    if weak:
-        # Named on the page but nothing corroborates WHICH company or where it
-        # is. That is exactly how orlando.org and lhc.org (a church in Austin)
-        # got picked by the previous approach, so this is NOT written by
-        # default — it is surfaced for a human instead.
-        return weak, "ok_verify"
-    return "", "no_match"
+    if not candidates:
+        return "", "no_match"
+    dom = llm_pick_domain(company, city, state, candidates)
+    return (dom, "ok_llm") if dom else ("", "no_match")
 
 
 def col_idx(letter):
@@ -369,10 +369,6 @@ def main():
     ap.add_argument("--retry_attempted", action="store_true",
                     help="re-search rows whose status shows a prior exa attempt "
                          "(default: skip them so --limit reaches FRESH rows)")
-    ap.add_argument("--accept_weak", action="store_true",
-                    help="also write ok_verify matches (company named on the page "
-                         "but no location corroboration). OFF by default — a blank "
-                         "cell beats a wrong domain.")
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
 
@@ -463,10 +459,9 @@ def main():
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         pool.map(work, todo)
 
-    STRONG = {"ok_exact_name", "ok_prefix", "ok_content"}
     writes = []
     for t, dom, status in results_out:
-        if dom and (status in STRONG or args.accept_weak):
+        if dom and status == "ok_llm":
             writes.append({"range": f"{args.tab}!{idx_col(W)}{t['row']}",
                            "values": [[dom]]})
         if STA is not None:
@@ -483,12 +478,10 @@ def main():
     print(f"  Exa spend:    ${spent[0]:.3f}")
     for k, n in stats.most_common():
         print(f"    {k:36} {n}")
-    verify = [(t['company'], d) for t, d, s in results_out if s == "ok_verify"]
-    if verify:
-        state = "WRITTEN (--accept_weak)" if args.accept_weak else "NOT written"
-        print(f"\n  {len(verify)} weak matches, {state} — company named on the page "
-              f"but location unconfirmed:")
-        for nm, d in verify[:20]:
+    picked = [(t['company'], d) for t, d, s in results_out if s == "ok_llm"]
+    if picked:
+        print(f"\n  LLM picks (spot-check a few):")
+        for nm, d in picked[:20]:
             print(f"    {nm[:40]:42} -> {d}")
 
 

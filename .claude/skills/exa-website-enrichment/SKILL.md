@@ -49,29 +49,24 @@ Jude's own sheet that the prefix rule would have thrown away:
 | Easy Reach PT Rehab | easyreachchiro.com | sister brand (chiro, not PT) |
 | Pamela Rowe Speech Therapy | speechorlando.com | service + city, no name at all |
 
-So prefix-in-domain is kept as a **fast path**, never as a gate. Anything failing
-it goes to content verification instead of being dropped.
+## How a domain gets accepted (rebuilt 2026-08-10, Jude's call)
 
-## How a domain gets accepted
+The old mechanical ladder (prefix-in-domain fast path + token/location content
+match) is **gone** — it false-positived whenever the domain didn't literally
+resemble the name, and vice versa. The judge now mirrors
+`healthcare-demand-pipeline/scripts/find_company_domains.py` (Jude's tested
+resolver feeding the LIVE Indiana pipeline): mechanical junk filtering first,
+then **GPT-4.1 reads every surviving candidate** (domain + title + Exa's
+1,200-char page text) with the company name AND its city/state, and returns
+one of the candidate domains or NONE. Sister brands, acronyms and
+service+city domains are explicitly allowed when the page text names the
+company; name collisions and wrong-location namesakes are explicit NONEs.
 
-| Status | Test | Written by default |
+| Status | Meaning | Written |
 |---|---|---|
-| `ok_prefix` | first **two** distinctive words appear in the domain | ✅ |
-| `ok_content` | page names the company (majority of distinctive tokens) **and** corroborates city or state | ✅ |
-| `ok_verify` | company named on the page, but nothing places it | ❌ surfaced for review |
-| `no_match` | nothing survived | ❌ |
+| `ok_llm` | GPT-4.1 picked it from the pre-filtered candidates | ✅ |
+| `no_match` | no candidates survived, or the LLM declined (NONE) | ❌ |
 | `error:*` | Exa/HTTP failure — **not** the same as "no website" | ❌ |
-
-**Two distinctive words, not one, is load-bearing.** "Orlando Health" has exactly
-one distinctive token ("health" is generic), and a one-token prefix matches
-anything containing it — `orlando.org` sails through. Names too thin to be an
-identity get no fast path at all. This mirrors roofingskill's finding that
-one-word names were a different company 2 times in 3.
-
-Rejected outright, with the reason recorded: directories and aggregators
-(healthgrades, zocdoc, yelp, wellness.com…), job boards, social, site builders,
-`.gov`, `careers.`/`jobs.` subdomains, and **any domain already claimed by a
-different company on the same sheet** — that last one is the parent-chain trap.
 
 ## Run
 
@@ -91,12 +86,21 @@ python3 -W ignore .claude/skills/exa-website-enrichment/scripts/enrich_websites_
 | `--col_status AB` | writes `exa_<status>` per row; omit to skip |
 | `--niche "healthcare practice"` | extra query words; sharpens results a lot |
 | `--overwrite` | also re-resolve rows that already have a website |
-| `--accept_weak` | also write `ok_verify`. **Off by default** — a blank beats a wrong domain |
 | `--apply` | actually spend and write. Without it: nothing happens |
 
 City and state are not optional decoration — they are what separates the Florida
-clinic from the Kentucky one with the same name. Point `--col_city`/`--col_state`
-at real data or content verification degrades to `ok_verify`.
+clinic from the Kentucky one with the same name, and they are passed to the LLM
+judge so namesakes in other cities get NONE'd. Point `--col_city`/`--col_state`
+at real data.
+
+Rejected before the LLM ever sees them, with the reason recorded: directories
+and aggregators (healthcare family, and since 2026-08-10 the production family —
+productionhub, mandy, staffmeup, imdb, vimeo, behance, peerspace, giggster,
+clutch, sortlist…), job boards, social, site builders, `.gov`,
+`careers.`/`jobs.` subdomains, and any domain already claimed by a different
+company on the same sheet (the parent-chain trap). These mechanical guards are
+what keep the LLM judge from repeating find_company_domains.py's measured
+failure (28 HCA facilities → careers.hcahealthcare.com).
 
 ## Cost and credits
 

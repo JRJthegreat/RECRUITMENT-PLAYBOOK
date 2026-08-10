@@ -12,11 +12,17 @@ re-classify after with classify_directory.py --retry_uncertain).
 
 Usage:
   python3 -W ignore .claude/skills/production-directory-leads/scripts/enrich_profiles.py [--limit N] \
-      [--classes PRODUCTION_HOUSE,UNCERTAIN] [--metros LA,NYC] [--dry_run]
+      [--classes PRODUCTION_HOUSE,UNCERTAIN] [--metros LA,NYC] [--local] [--dry_run]
+
+--local runs the actor code on this machine (persistent Chrome profile) —
+currently the only working mode; cloud runs are Cloudflare-blocked (see
+SKILL.md).
 """
 import argparse
+import glob
 import json
 import os
+import subprocess
 import sys
 import time
 
@@ -31,6 +37,31 @@ APIFY_TOKEN = os.environ["APIFY_API_TOKEN"]
 
 POLL_EVERY = 30
 RUN_TIMEOUT = 4 * 3600
+
+ACTOR_DIR = "/Users/air/AIOS - AI OPERATING SYSTEMS/productionhub-directory-actor"
+
+
+def run_local(ids):
+    """Run the actor code locally in visit-only mode (see scrape_directory.py)."""
+    storage = os.path.join(ACTOR_DIR, "storage")
+    ds_dir = os.path.join(storage, "datasets", "default")
+    if os.path.isdir(ds_dir):
+        for fp in glob.glob(os.path.join(ds_dir, "*.json")):
+            os.remove(fp)
+    kv_dir = os.path.join(storage, "key_value_stores", "default")
+    os.makedirs(kv_dir, exist_ok=True)
+    with open(os.path.join(kv_dir, "INPUT.json"), "w") as f:
+        json.dump({"profileIds": ids}, f)
+    env = dict(os.environ, APIFY_LOCAL_STORAGE_DIR=storage)
+    subprocess.run([os.path.join(ACTOR_DIR, ".venv", "bin", "python"), "-m", "src"],
+                   cwd=ACTOR_DIR, env=env, check=False)
+    items = []
+    for fp in sorted(glob.glob(os.path.join(ds_dir, "*.json"))):
+        with open(fp) as f:
+            it = json.load(f)
+        if isinstance(it, dict) and it.get("profile_id"):
+            items.append(it)
+    return items
 
 
 def wait_for_run(run_id):
@@ -68,6 +99,8 @@ def main():
     ap.add_argument("--classes", default="PRODUCTION_HOUSE",
                     help="comma-separated classifications to enrich")
     ap.add_argument("--metros", default=None)
+    ap.add_argument("--local", action="store_true",
+                    help="run the actor code on this machine instead of Apify cloud")
     ap.add_argument("--dry_run", action="store_true")
     args = ap.parse_args()
 
@@ -96,21 +129,24 @@ def main():
     if not ids:
         return
 
-    body = {
-        "profileIds": ids,
-        "proxyConfiguration": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]},
-    }
-    resp = requests.post(f"https://api.apify.com/v2/acts/{cfg['actor_id']}/runs",
-                         params={"token": APIFY_TOKEN}, json=body, timeout=60)
-    resp.raise_for_status()
-    data = resp.json()["data"]
-    run_id, dataset_id = data["id"], data["defaultDatasetId"]
-    print(f"Actor run {run_id} started (dataset {dataset_id})")
-    status = wait_for_run(run_id)
-    if status != "SUCCEEDED":
-        print(f"Run ended {status} — ingesting partial dataset anyway")
-
-    items = fetch_dataset(dataset_id)
+    if args.local:
+        items = run_local(ids)
+        status = run_id = "LOCAL"
+    else:
+        body = {
+            "profileIds": ids,
+            "proxyConfiguration": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]},
+        }
+        resp = requests.post(f"https://api.apify.com/v2/acts/{cfg['actor_id']}/runs",
+                             params={"token": APIFY_TOKEN}, json=body, timeout=60)
+        resp.raise_for_status()
+        data = resp.json()["data"]
+        run_id, dataset_id = data["id"], data["defaultDatasetId"]
+        print(f"Actor run {run_id} started (dataset {dataset_id})")
+        status = wait_for_run(run_id)
+        if status != "SUCCEEDED":
+            print(f"Run ended {status} — ingesting partial dataset anyway")
+        items = fetch_dataset(dataset_id)
     updated = 0
     for it in items:
         pid = str(it.get("profile_id") or "")

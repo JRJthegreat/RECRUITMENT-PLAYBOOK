@@ -4,12 +4,18 @@ a new Google Sheet, and stamp them exported_at + batch_id in the store.
 
 Clone of production-house-leads/export_batch.py against the directory store.
 Deltas by default, nppes-style: only rows with exported_at IS NULL are
-candidates, so the same company is never worked twice. One row per domain
-(highest views wins — the busiest profile is the real listing); domain-less
-rows are held back until enrich_profiles.py or exa-website-enrichment fills
-them. ALSO deduped against the Maps store (production-house-leads
+candidates, so the same company is never worked twice. One row per company —
+keyed by domain where known (highest views wins), by normalized name
+otherwise. Domain-less rows ARE exported with a blank website cell: most
+free-tier ProductionHub profiles publish no website at all (verified
+2026-08-10 — 1/25 on a random ICP sample), so domains come from
+exa-website-enrichment ON THE SHEET afterwards, same as the nppes commercial
+track. ALSO deduped against the Maps store (production-house-leads
 data/production.db) when present: a domain already exported from the Maps
 lane is skipped here — same company, different source.
+
+After creating a sheet, run exa-website-enrichment against it (K/L/R/S/AB
+are its default flags) BEFORE any DM/email enrichment.
 
 Order is RANDOM (shuffled) so reply data, not scrape order, decides what
 works.
@@ -118,7 +124,7 @@ def main():
     size = args.size or cfg["export_batch_size"]
     conn = get_db()
 
-    where = "classification='PRODUCTION_HOUSE' AND exported_at IS NULL AND domain IS NOT NULL"
+    where = "classification='PRODUCTION_HOUSE' AND exported_at IS NULL"
     params = []
     if args.metros:
         keys = [k.strip().upper() for k in args.metros.split(",")]
@@ -136,15 +142,19 @@ def main():
         "SELECT DISTINCT domain FROM companies WHERE exported_at IS NOT NULL AND domain IS NOT NULL")}
     exported |= maps_exported_domains()
 
-    # one row per domain — highest views wins (busiest profile = real listing)
-    by_domain = {}
+    # one row per company — by domain where known, by normalized name otherwise
+    # (highest views wins: busiest profile = real listing)
+    def key(r):
+        return r["domain"] or "name:" + "".join(c for c in r["name"].lower() if c.isalnum())
+
+    by_key = {}
     for r in rows:
-        if r["domain"] in exported:
+        if r["domain"] and r["domain"] in exported:
             continue
-        best = by_domain.get(r["domain"])
+        best = by_key.get(key(r))
         if best is None or (r["views"] or 0) > (best["views"] or 0):
-            by_domain[r["domain"]] = r
-    pool = list(by_domain.values())
+            by_key[key(r)] = r
+    pool = list(by_key.values())
 
     rng = random.Random(args.seed)
     rng.shuffle(pool)
@@ -170,7 +180,7 @@ def main():
         r["profile_id"], r["category"] or "", r["member_since"] or "", r["views"] or "",
         r["metro"], r["phone"] or "", r["profile_url"] or "", r["scraped_at"] or "",
         str(next_id), "",
-        r["name"], r["domain"], "", "", "",
+        r["name"], r["domain"] or "", "", "", "",
         (r["description"] or "")[:900], "",
         r["city"] or "", r["region"] or "",
         "", "", "", "", "", "", "", "", "",

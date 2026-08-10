@@ -94,10 +94,13 @@ python3 -W ignore .claude/skills/production-directory-leads/scripts/export_batch
   `/uk/england/london` resolves but has zero listings — London, Amsterdam and
   Berlin need LBBonline or a curated pass (not built). Config metros: LA,
   NYC, Austin, Nashville, Chicago, Miami, Atlanta, Toronto.
-- **Websites are NOT a directory field.** They only exist where the company
-  wrote a URL into its own blurb (~60% of visited profiles on the test
-  sample) or linked it. `domain IS NULL` after enrichment is normal — finish
-  those rows with `exa-website-enrichment`.
+- **Websites are NOT a directory field — and free-tier profiles barely have
+  data at all.** On a random 25-row ICP sample (2026-08-10): 1 website, 1
+  phone, 0 LinkedIn — the contact-rich profiles are premium members, mostly
+  featured on page 1. So **mass profile-visiting is NOT worth the hours**;
+  Phase 2.5 is for targeted passes (UNCERTAIN refinement, small high-value
+  sets). Domains come from `exa-website-enrichment` ON the exported sheet
+  (export includes domain-less rows with blank L for exactly this).
 - **Freelancers are mixed into every category** ("I'm a Director/DP…") — the
   classifier's FREELANCER class leans on first-person voice. Expect a lower
   junk rate than Maps but not zero.

@@ -248,11 +248,19 @@ def exa_search(company, city, state, niche, key, n=6):
         return [], 0.0, "error:no_response"
     if r.status_code == 429:
         return [], 0.0, "error:http_429_after_retries"
+    # 402/401 used to raise SystemExit here to stop the run immediately. That
+    # broke silently: exa_search runs inside a ThreadPoolExecutor worker, and
+    # main() never consumes pool.map()'s return value, so an exception raised
+    # in a worker thread is captured on its Future and discarded — never
+    # printed, never re-raised. Every row in the batch failed identically
+    # (same key, same credit balance) and the run reported "$0.000 spent, 0
+    # rows" with no error at all. Returning an error tuple instead lets
+    # work() record it in `stats`, and main() checks for exactly these two
+    # codes after the pool finishes to print a loud, unmissable message.
     if r.status_code == 402:
-        raise SystemExit("Exa is out of credits (402). Top up at dashboard.exa.ai — "
-                         "stopping now rather than burning the rest of the run.")
+        return [], 0.0, "error:out_of_credits"
     if r.status_code == 401:
-        raise SystemExit("Exa rejected the API key (401). Check EXA_API_KEY in .claude/.env")
+        return [], 0.0, "error:invalid_api_key"
     if r.status_code != 200:
         return [], 0.0, f"error:http_{r.status_code}"
     d = r.json()
@@ -456,8 +464,19 @@ def main():
     collected_out = []    # rows with candidates — for Claude to judge
 
     def work(t):
-        res, cost, err = exa_search(t["company"], t["city"], t["state"],
-                                    args.niche, key)
+        try:
+            res, cost, err = exa_search(t["company"], t["city"], t["state"],
+                                        args.niche, key)
+        except Exception as e:
+            # Belt-and-suspenders: work() runs inside a thread pool whose
+            # results are force-consumed below specifically so a bug like
+            # this can never again vanish silently (see the 402/401 note in
+            # exa_search). Any exception that still gets here is recorded,
+            # not swallowed.
+            with lock:
+                stats[f"error:{type(e).__name__}"] += 1
+                errors_out.append((t, f"error:{type(e).__name__}"))
+            return
         with lock:
             spent[0] += cost
             if err:
@@ -473,7 +492,26 @@ def main():
                 collected_out.append({**t, "candidates": cands})
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        pool.map(work, todo)
+        # list(...) forces the pool to actually iterate its own map() result.
+        # Without this, exceptions raised inside work() are captured on their
+        # Future and never observed — see the comment above exa_search's
+        # 402/401 handling for what that cost us.
+        list(pool.map(work, todo))
+
+    fatal = stats.get("error:out_of_credits", 0) + stats.get("error:invalid_api_key", 0)
+    if fatal and fatal == len(todo):
+        reason = "out of Exa credits" if "error:out_of_credits" in stats else "Exa API key rejected"
+        print(f"\n!!! STOPPED: every one of {len(todo)} rows failed — {reason}. "
+              f"Nothing was found because nothing could be searched.")
+        if "error:out_of_credits" in stats:
+            print("    Top up at dashboard.exa.ai, then re-run this exact command — "
+                  "nothing was written to the sheet, so no rows were skipped.")
+        else:
+            print("    Check EXA_API_KEY in .claude/.env, then re-run this exact command.")
+        return
+    elif fatal:
+        print(f"\n!!! WARNING: {fatal}/{len(todo)} rows failed on Exa credits/auth mid-run — "
+              f"top up and re-run with --retry_attempted to pick them back up.")
 
     # Rows with nothing to judge get their status stamped now; rows with
     # candidates are NOT touched until the verdicts pass.

@@ -17,6 +17,10 @@ lane is skipped here — same company, different source.
 After creating a sheet, run exa-website-enrichment against it (K/L/R/S/AB
 are its default flags) BEFORE any DM/email enrichment.
 
+Every created sheet is also appended to data/batch_sheets.json (batch_id ->
+sheet_id) — consolidate_master.py reads that manifest to rebuild a single
+working sheet of every resolved company across all batches, on request.
+
 Order is RANDOM (shuffled) so reply data, not scrape order, decides what
 works.
 
@@ -195,6 +199,16 @@ def main():
         [(next_id, r["profile_id"]) for r in batch])
     conn.commit()
     log_run(conn, "export_batch", f"batch {next_id}: {len(batch)} rows -> {sid}")
+
+    manifest_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "..", "data", "batch_sheets.json")
+    manifest = []
+    if os.path.exists(manifest_path):
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+    manifest.append({"batch_id": next_id, "sheet_id": sid})
+    with open(manifest_path, "w") as f:
+        json.dump(manifest, f, indent=1)
     print(f"Batch {next_id}: {len(batch)} rows exported and stamped.")
 
 

@@ -49,23 +49,32 @@ Jude's own sheet that the prefix rule would have thrown away:
 | Easy Reach PT Rehab | easyreachchiro.com | sister brand (chiro, not PT) |
 | Pamela Rowe Speech Therapy | speechorlando.com | service + city, no name at all |
 
-## How a domain gets accepted (rebuilt 2026-08-10, Jude's call)
+## How a domain gets accepted (rebuilt 2026-08-10, Jude's calls)
 
 The old mechanical ladder (prefix-in-domain fast path + token/location content
 match) is **gone** — it false-positived whenever the domain didn't literally
-resemble the name, and vice versa. The judge now mirrors
+resemble the name, and vice versa. The judgment structure now mirrors
 `healthcare-demand-pipeline/scripts/find_company_domains.py` (Jude's tested
-resolver feeding the LIVE Indiana pipeline): mechanical junk filtering first,
-then **GPT-4.1 reads every surviving candidate** (domain + title + Exa's
-1,200-char page text) with the company name AND its city/state, and returns
-one of the candidate domains or NONE. Sister brands, acronyms and
-service+city domains are explicitly allowed when the page text names the
-company; name collisions and wrong-location namesakes are explicit NONEs.
+resolver feeding the LIVE Indiana pipeline), and **the judge is Claude in the
+Claude Code session — no GPT, no per-call LLM API spend** (Jude, 2026-08-10).
+
+Three steps:
+1. **Collect** (`--apply`): one Exa search per row → mechanical prefilter →
+   `exa_candidates.json` (domain + title + 300 chars of page text each).
+   Rows with zero surviving candidates are stamped `exa_no_match` now.
+2. **Judge** (Claude, in-session): read the candidates file, pick the official
+   site per row or "". Sister brands, acronyms and service+city domains are
+   allowed when the page text names the company; name collisions and
+   wrong-location namesakes get "". Write `verdicts.json`.
+3. **Apply** (`--verdicts verdicts.json --apply`): each verdict must be one of
+   that row's collected candidates (else refused), parent-chain guard
+   enforced, website + status written. No Exa spend in this step.
 
 | Status | Meaning | Written |
 |---|---|---|
-| `ok_llm` | GPT-4.1 picked it from the pre-filtered candidates | ✅ |
-| `no_match` | no candidates survived, or the LLM declined (NONE) | ❌ |
+| `ok_claude` | Claude picked it from the pre-filtered candidates | ✅ |
+| `no_match` | no candidates survived, or Claude declined | ❌ |
+| `verdict_refused` | verdict wasn't among the row's candidates | ❌ |
 | `error:*` | Exa/HTTP failure — **not** the same as "no website" | ❌ |
 
 ## Run
@@ -75,9 +84,15 @@ company; name collisions and wrong-location namesakes are explicit NONEs.
 python3 -W ignore .claude/skills/exa-website-enrichment/scripts/enrich_websites_exa.py \
   --sheet_url "URL" --limit 20
 
-# then commit
+# step 1 — collect candidates (the only step that spends Exa credits)
 python3 -W ignore .claude/skills/exa-website-enrichment/scripts/enrich_websites_exa.py \
-  --sheet_url "URL" --limit 20 --apply --niche "healthcare practice"
+  --sheet_url "URL" --apply --niche "video production company" --candidates exa_candidates.json
+
+# step 2 — Claude judges exa_candidates.json in-session, writes verdicts.json
+
+# step 3 — apply verdicts (free)
+python3 -W ignore .claude/skills/exa-website-enrichment/scripts/enrich_websites_exa.py \
+  --sheet_url "URL" --candidates exa_candidates.json --verdicts verdicts.json --apply
 ```
 
 | Flag | Meaning |

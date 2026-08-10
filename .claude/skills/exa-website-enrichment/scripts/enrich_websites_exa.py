@@ -18,18 +18,28 @@ failed:
     careers.hcahealthcare.com and 15 Life Care homes to lcca.com, which makes
     Apollo hand back the SAME corporate person for every one of them.
 
-ACCEPTANCE (rebuilt 2026-08-10, Jude's call: mirror find_company_domains.py)
+ACCEPTANCE (rebuilt 2026-08-10, Jude's calls: mirror find_company_domains.py's
+judgment structure, and the judge is CLAUDE IN THE SESSION — no GPT, no
+per-call LLM API spend)
 -----------------------------------------------------------
 The first version of this script judged mechanically: prefix-in-domain fast
 path, then token+location content matching. In practice that produced false
 positives and false negatives whenever the domain didn't literally resemble
-the company name (or resembled a namesake's). Jude's tested resolver —
-healthcare-demand-pipeline/find_company_domains.py, which feeds the LIVE
-Indiana pipeline — decides differently: mechanical junk filtering, then
-**GPT-4.1 reads each candidate (domain + title + page text) and picks the
-official site or NONE**. This script now mirrors that decision structure,
-with Exa as the search layer (its 1,200-char page text is richer evidence
-than Google snippets).
+the company name (or resembled a namesake's). The decision structure now
+mirrors Jude's tested resolver (healthcare-demand-pipeline/
+find_company_domains.py, feeding the LIVE Indiana pipeline): mechanical junk
+filtering, then a model reads each candidate (domain + title + page text)
+and picks the official site or nothing. The model is the Claude Code session
+itself, via a two-step flow:
+
+  1. COLLECT (this script, --apply): Exa search per row -> mechanical
+     prefilter -> candidates JSON. Rows with zero candidates are stamped
+     exa_no_match immediately.
+  2. JUDGE (Claude, in-session): read the candidates file, write verdicts
+     JSON [{"row": N, "domain": "x.com" | ""}].
+  3. APPLY (this script, --verdicts FILE --apply): validate each verdict is
+     one of that row's candidates, enforce the parent-chain guard, write
+     website + status. A verdict outside the candidate set is refused.
 
 What is deliberately KEPT from this script's own history are the mechanical
 guards that fix the LLM-pick failure modes measured above:
@@ -38,7 +48,7 @@ guards that fix the LLM-pick failure modes measured above:
     on the same sheet is never reused (the 28-HCA-rows trap)
   * the junk-host list (directories, registries, portfolio hosts)
 
-Statuses: ok_llm (written) / no_match (LLM declined) / the reject classes.
+Statuses: ok_claude (written) / no_match / verdict_refused / reject classes.
 
 REJECTED OUTRIGHT (never written, with the reason recorded)
 -----------------------------------------------------------
@@ -57,9 +67,16 @@ stops immediately rather than burning the rest of the run.
 
 USAGE
 -----
-  python3 -W ignore enrich_websites_exa.py --sheet_url "URL" --limit 20          # dry run
-  python3 -W ignore enrich_websites_exa.py --sheet_url "URL" --limit 20 --apply
-  python3 -W ignore enrich_websites_exa.py --sheet_url "URL" --apply             # all blanks
+  # step 1 — collect candidates (the only step that spends Exa credits)
+  python3 -W ignore enrich_websites_exa.py --sheet_url "URL" --limit 20              # dry run
+  python3 -W ignore enrich_websites_exa.py --sheet_url "URL" --apply \
+      --candidates exa_candidates.json
+
+  # step 2 — Claude judges exa_candidates.json in-session -> verdicts.json
+
+  # step 3 — apply verdicts (no Exa spend)
+  python3 -W ignore enrich_websites_exa.py --sheet_url "URL" \
+      --candidates exa_candidates.json --verdicts verdicts.json --apply
 
   --col_company K --col_website L --col_city R --col_state S --col_status AB
   --overwrite     also re-resolve rows that already have a website
@@ -242,73 +259,28 @@ def exa_search(company, city, state, niche, key, n=6):
     return d.get("results", []), (d.get("costDollars") or {}).get("total", 0.0) or 0.0, None
 
 
-# ---- LLM pick, mirroring find_company_domains.py -------------------------
-# Same decision structure, same conservative NONE-leaning rules, same
-# answer-must-be-a-candidate constraint. Differences: candidates carry Exa's
-# page-text excerpt (richer than a Google snippet), and the model is told the
-# company's location so namesakes in other cities get NONE'd.
-
-AZ_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
-AZ_KEY = os.getenv("AZURE_OPENAI_API_KEY")
-AZ_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
-AZ_MODEL = os.getenv("AZURE_OPENAI_DEPLOYMENT_FAST", "gpt-4.1")
-
-LLM_SYSTEM = (
-    "You identify a company's official website from web search results. "
-    "You will receive a company name, its location, and numbered candidate "
-    "results (domain + title + page text excerpt). Reply with ONLY the bare "
-    "domain of the official site (e.g. 'example.com') or the word NONE. "
-    "Rules:\n"
-    "- Pick the company's own corporate/brand website, not third-party listings.\n"
-    "- Reject directories, review sites, job boards, company registries, social media.\n"
-    "- The domain does NOT have to contain the company name: sister brands, "
-    "acronyms and service+city domains are fine IF the page text clearly names "
-    "the company.\n"
-    "- If the top candidates refer to a different company (name collision), reply NONE.\n"
-    "- If the page places the company somewhere incompatible with the given "
-    "location (a namesake elsewhere), reply NONE.\n"
-    "- If no candidate is clearly the official site, reply NONE."
-)
+# ---- Candidate collection for Claude-in-session judging -------------------
+# Jude's call (2026-08-10): no GPT. The judge is Claude itself, in the Claude
+# Code session, reading the collected candidates and returning verdicts. The
+# decision structure still mirrors find_company_domains.py — junk filtered
+# mechanically, then a model reads domain + title + page text and picks the
+# official site or nothing — but the model is the session, not an API call.
+#
+# Judging rules (for the session doing the verdicts):
+#   - Pick the company's own corporate/brand website, not third-party listings.
+#   - The domain does NOT have to contain the company name: sister brands,
+#     acronyms and service+city domains are fine IF the page text clearly
+#     names the company.
+#   - Name collision or wrong-location namesake -> "" (skip).
+#   - Not clearly the official site -> "" — a blank beats a wrong domain.
+#
+# Verdicts file format (JSON): [{"row": 2, "domain": "example.com"}, ...]
+# with "" as the domain for NONE. A verdict domain that was not among that
+# row's collected candidates is refused at apply time.
 
 
-def llm_pick_domain(company, city, state, candidates):
-    """Ask GPT-4.1 to pick the official website from pre-filtered candidates.
-    Returns the chosen bare domain (guaranteed to be one of the candidates),
-    or ''."""
-    if not candidates or not AZ_ENDPOINT:
-        return ""
-    loc = ", ".join(x for x in [city, state] if x) or "unknown"
-    lines = [f"Company: {company}", f"Location: {loc}", "", "Candidates:"]
-    for i, c in enumerate(candidates, 1):
-        lines.append(f"{i}. {c['domain']}")
-        lines.append(f"   Title: {c['title'][:150]}")
-        lines.append(f"   Page text: {c['text'][:300]}")
-    lines.append("")
-    lines.append("Reply with ONLY the bare domain or NONE.")
-    try:
-        resp = requests.post(
-            f"{AZ_ENDPOINT}/openai/deployments/{AZ_MODEL}/chat/completions",
-            params={"api-version": AZ_VERSION},
-            headers={"api-key": AZ_KEY, "Content-Type": "application/json"},
-            json={"messages": [{"role": "system", "content": LLM_SYSTEM},
-                               {"role": "user", "content": "\n".join(lines)}],
-                  "max_completion_tokens": 60,
-                  "temperature": 0},
-            timeout=60)
-        if resp.status_code != 200:
-            return ""
-        answer = (resp.json()["choices"][0]["message"]["content"] or "").strip().lower()
-        answer = re.sub(r"^https?://", "", answer).split("/")[0].strip().strip(".,'\"`")
-        answer = re.sub(r"^www\.", "", answer)
-        if not answer or answer == "none" or "." not in answer:
-            return ""
-        return answer if answer in {c["domain"] for c in candidates} else ""
-    except Exception:
-        return ""
-
-
-def judge(company, city, state, results, taken):
-    """Mechanically prefilter Exa results, then let GPT-4.1 pick — or NONE."""
+def build_candidates(company, results, taken):
+    """Mechanically prefilter Exa results into judgeable candidates."""
     candidates, seen = [], set()
     for item in results:
         dom = norm_domain(item.get("url", ""))
@@ -328,13 +300,9 @@ def judge(company, city, state, results, taken):
             continue
         seen.add(dom)
         candidates.append({"domain": dom,
-                           "title": item.get("title") or "",
-                           "text": item.get("text") or ""})
-
-    if not candidates:
-        return "", "no_match"
-    dom = llm_pick_domain(company, city, state, candidates)
-    return (dom, "ok_llm") if dom else ("", "no_match")
+                           "title": (item.get("title") or "")[:150],
+                           "text": (item.get("text") or "")[:300]})
+    return candidates
 
 
 def col_idx(letter):
@@ -369,11 +337,16 @@ def main():
     ap.add_argument("--retry_attempted", action="store_true",
                     help="re-search rows whose status shows a prior exa attempt "
                          "(default: skip them so --limit reaches FRESH rows)")
+    ap.add_argument("--candidates", default="exa_candidates.json",
+                    help="where the collect step writes candidates for Claude to judge")
+    ap.add_argument("--verdicts", default=None,
+                    help="apply mode: JSON file of Claude's verdicts "
+                         '[{"row": N, "domain": "x.com" | ""}] — no Exa spend')
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
 
     key = os.getenv("EXA_API_KEY")
-    if not key:
+    if not key and not args.verdicts:
         sys.exit("EXA_API_KEY not set. Add it to .claude/.env")
 
     sid = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", args.sheet_url).group(1)
@@ -397,6 +370,55 @@ def main():
         if d and "." in d:
             taken.setdefault(d, cell(r, C))
 
+    # ---------------- apply mode: write Claude's verdicts, no Exa spend ----
+    if args.verdicts:
+        with open(args.candidates) as f:
+            collected = {c["row"]: c for c in json.load(f)}
+        with open(args.verdicts) as f:
+            verdicts = json.load(f)
+
+        stats = Counter()
+        writes = []
+        for v in verdicts:
+            row, dom = v["row"], norm_domain(v.get("domain") or "")
+            rec = collected.get(row)
+            if rec is None:
+                print(f"  [!] row {row}: no collected candidates — skipped")
+                continue
+            status = "no_match"
+            if dom:
+                allowed = {c["domain"] for c in rec["candidates"]}
+                if dom not in allowed:
+                    print(f'  [!] row {row} ({rec["company"]}): verdict {dom} is not '
+                          f"among its candidates — refused")
+                    dom, status = "", "verdict_refused"
+                elif dom in taken and taken[dom].lower() != rec["company"].lower():
+                    dom, status = "", "domain_claimed_by_other_company"
+                else:
+                    taken[dom] = rec["company"]
+                    status = "ok_claude"
+            if dom:
+                writes.append({"range": f"{args.tab}!{idx_col(W)}{row}",
+                               "values": [[dom]]})
+            if STA is not None:
+                writes.append({"range": f"{args.tab}!{idx_col(STA)}{row}",
+                               "values": [[f"exa_{status}"]]})
+            stats[status] += 1
+
+        if not args.apply:
+            print(f"[DRY RUN] would write {len(writes)} cells: {dict(stats)}. "
+                  "Re-run with --apply.")
+            return
+        for k in range(0, len(writes), 100):
+            svc.spreadsheets().values().batchUpdate(
+                spreadsheetId=sid,
+                body={"valueInputOption": "RAW", "data": writes[k:k + 100]}).execute()
+        print(f"=== Verdicts applied ===")
+        for k, n in stats.most_common():
+            print(f"  {k:36} {n}")
+        return
+
+    # ---------------- collect mode: Exa search + prefilter -> candidates ----
     todo = []
     for i, r in enumerate(rows):
         name = cell(r, C)
@@ -404,11 +426,11 @@ def main():
             continue
         if cell(r, W) and "." in cell(r, W) and not args.overwrite:
             continue
-        # A prior attempt that ended no_match/ok_verify leaves the website cell
-        # BLANK but stamps the status column — without this check those rows
-        # sit at the top of the sheet and get re-searched (and re-billed) on
-        # every --limit run before any fresh row is reached. Re-attempt them
-        # only with --retry_attempted.
+        # A prior attempt that ended no_match leaves the website cell BLANK
+        # but stamps the status column — without this check those rows sit at
+        # the top of the sheet and get re-searched (and re-billed) on every
+        # --limit run before any fresh row is reached. Re-attempt them only
+        # with --retry_attempted.
         if (STA is not None and cell(r, STA).startswith("exa_")
                 and not args.overwrite and not args.retry_attempted):
             continue
@@ -417,7 +439,7 @@ def main():
     if args.limit:
         todo = todo[:args.limit]
 
-    print(f"=== Exa website enrichment {'(APPLY)' if args.apply else '(DRY RUN)'} ===")
+    print(f"=== Exa candidate collection {'(APPLY)' if args.apply else '(DRY RUN)'} ===")
     print(f"rows needing a website: {len(todo)}")
     print(f"estimated Exa cost:     ~${len(todo) * EXA_COST_PER_SEARCH:.2f}")
     if not args.apply:
@@ -430,59 +452,51 @@ def main():
     lock = threading.Lock()
     spent = [0.0]
     stats = Counter()
-    results_out = []
+    errors_out = []       # (t, err) — stamped on the sheet immediately
+    collected_out = []    # rows with candidates — for Claude to judge
 
     def work(t):
         res, cost, err = exa_search(t["company"], t["city"], t["state"],
                                     args.niche, key)
         with lock:
             spent[0] += cost
-        if err:
-            with lock:
+            if err:
                 stats[err] += 1
-                results_out.append((t, "", err))
-            return
-        with lock:
-            snapshot = dict(taken)
-        dom, status = judge(t["company"], t["city"], t["state"], res, snapshot)
-        with lock:
-            if dom:
-                # claim it immediately so two rows in the same batch cannot both
-                # take the same parent domain
-                if dom in taken and taken[dom].lower() != t["company"].lower():
-                    dom, status = "", "domain_claimed_by_other_company"
-                else:
-                    taken[dom] = t["company"]
-            stats[status] += 1
-            results_out.append((t, dom, status))
+                errors_out.append((t, err))
+                return
+            cands = build_candidates(t["company"], res, taken)
+            if not cands:
+                stats["no_candidates"] += 1
+                errors_out.append((t, "no_match"))
+            else:
+                stats["collected"] += 1
+                collected_out.append({**t, "candidates": cands})
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         pool.map(work, todo)
 
-    writes = []
-    for t, dom, status in results_out:
-        if dom and status == "ok_llm":
-            writes.append({"range": f"{args.tab}!{idx_col(W)}{t['row']}",
-                           "values": [[dom]]})
-        if STA is not None:
-            writes.append({"range": f"{args.tab}!{idx_col(STA)}{t['row']}",
-                           "values": [[f"exa_{status}"]]})
-    for k in range(0, len(writes), 100):
-        svc.spreadsheets().values().batchUpdate(
-            spreadsheetId=sid,
-            body={"valueInputOption": "RAW", "data": writes[k:k + 100]}).execute()
+    # Rows with nothing to judge get their status stamped now; rows with
+    # candidates are NOT touched until the verdicts pass.
+    if STA is not None and errors_out:
+        writes = [{"range": f"{args.tab}!{idx_col(STA)}{t['row']}",
+                   "values": [[f"exa_{err}"]]} for t, err in errors_out]
+        for k in range(0, len(writes), 100):
+            svc.spreadsheets().values().batchUpdate(
+                spreadsheetId=sid,
+                body={"valueInputOption": "RAW", "data": writes[k:k + 100]}).execute()
 
-    found = sum(1 for _, d, _ in results_out if d)
+    collected_out.sort(key=lambda c: c["row"])
+    with open(args.candidates, "w") as f:
+        json.dump(collected_out, f, indent=1)
+
     print(f"\n=== Summary ===")
-    print(f"  resolved:     {found}/{len(todo)} ({100*found/max(1,len(todo)):.0f}%)")
-    print(f"  Exa spend:    ${spent[0]:.3f}")
+    print(f"  Exa spend:      ${spent[0]:.3f}")
     for k, n in stats.most_common():
         print(f"    {k:36} {n}")
-    picked = [(t['company'], d) for t, d, s in results_out if s == "ok_llm"]
-    if picked:
-        print(f"\n  LLM picks (spot-check a few):")
-        for nm, d in picked[:20]:
-            print(f"    {nm[:40]:42} -> {d}")
+    print(f"\n{len(collected_out)} rows with candidates -> {args.candidates}")
+    print("Next: have Claude read that file, write verdicts JSON "
+          '([{"row": N, "domain": "x.com" | ""}]), then re-run with '
+          f"--verdicts VERDICTS_FILE --candidates {args.candidates} --apply")
 
 
 if __name__ == "__main__":

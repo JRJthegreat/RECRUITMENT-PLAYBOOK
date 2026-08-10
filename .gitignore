@@ -17,6 +17,7 @@
 .claude/skills/nppes-new-clinics/data/
 .claude/skills/healthcare-staffing-enrichment/data/
 .claude/skills/production-house-leads/data/
+.claude/skills/production-directory-leads/data/
 
 # Python
 __pycache__/

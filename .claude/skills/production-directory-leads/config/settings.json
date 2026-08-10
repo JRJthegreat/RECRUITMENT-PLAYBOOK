@@ -1,0 +1,24 @@
+{
+  "actor_id": "IeRTbhbdczWrFJvOJ",
+  "actor_name": "jude22/productionhub-directory-scraper",
+  "categories": [
+    "commercial-production-companies",
+    "video-production-companies",
+    "corporate-video-production-business-videos",
+    "film-production-companies"
+  ],
+  "radius": 100,
+  "max_pages_per_list": 60,
+  "export_batch_size": 300,
+  "metros": [
+    {"key": "LA",  "label": "Los Angeles", "location_path": "us/california/los-angeles"},
+    {"key": "NYC", "label": "New York",    "location_path": "us/new-york/new-york"},
+    {"key": "AUS", "label": "Austin",      "location_path": "us/texas/austin"},
+    {"key": "NSH", "label": "Nashville",   "location_path": "us/tennessee/nashville"},
+    {"key": "CHI", "label": "Chicago",     "location_path": "us/illinois/chicago"},
+    {"key": "MIA", "label": "Miami",       "location_path": "us/florida/miami"},
+    {"key": "ATL", "label": "Atlanta",     "location_path": "us/georgia/atlanta"},
+    {"key": "TOR", "label": "Toronto",     "location_path": "ca/ontario/toronto"}
+  ],
+  "_note_europe": "London/Amsterdam/Berlin are NOT here: ProductionHub has no listings for them (verified 2026-08-10 — /uk/england/london resolves but is empty). European hubs need LBBonline or a curated pass."
+}

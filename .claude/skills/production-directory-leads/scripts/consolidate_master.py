@@ -3,12 +3,22 @@ Consolidate resolved rows (Company Website filled) across all campaign batch
 sheets into one master sheet.
 
 Jude's call (2026-08-11): after 7 batches, he wanted one list to actually
-work the campaign from rather than juggling per-batch sheets. This is a
-one-time-per-run consolidation, NOT a new export mechanism — the per-batch
-sheets (export_batch.py) remain the unit DM-finding/email-enrichment runs
-against; this just gathers their resolved rows afterward. Re-running this
-script rebuilds the master sheet from scratch (clears and rewrites), so it's
-safe to run again after later batches resolve more rows.
+work the campaign from rather than juggling per-batch sheets.
+
+APPEND-ONLY against an existing master (2026-08-11, post-incident). The
+first version of this script cleared and rewrote the whole master sheet from
+the per-batch source sheets on every run. That's fine right up until
+DM-finding starts writing directly to the MASTER sheet (which is what
+actually happened — apollo_dm_waterfall_production.py was run against the
+master, not against the individual batch sheets). The per-batch sheets never
+had that DM data, so a rerun of the old "clear and rewrite" logic silently
+wiped 276 of 285 already-found emails — recovered from Google Sheets'
+Drive-API revision history, not from anything this script could see. Never
+again: with --master_url, this script now ONLY appends companies whose
+domain isn't already present on the master — it reads the master first,
+never clears it, and any enrichment already sitting in T-AC (DM name, email,
+etc.) on the master survives no matter how many times this runs. The
+per-batch sheets remain read-only sources here, exactly like before.
 
 Batch sheet IDs are read from data/batch_sheets.json, a manifest written by
 export_batch.py (one line per batch). If a batch predates the manifest,
@@ -103,7 +113,9 @@ def create_master(svc, title, n_rows):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--master_url", default=None,
-                    help="existing master sheet to clear and rewrite; omit to create a new one")
+                    help="existing master sheet to APPEND new companies to "
+                         "(never cleared — existing DM/email enrichment is safe); "
+                         "omit to create a new one")
     ap.add_argument("--batch_urls", default=None,
                     help="comma-separated sheet URLs to pull from (overrides the manifest)")
     args = ap.parse_args()
@@ -119,47 +131,62 @@ def main():
                      "Pass --batch_urls with comma-separated sheet URLs.")
         batch_sids = [b["sheet_id"] for b in manifest]
 
+    # Existing master rows are the source of truth for anything already
+    # enriched (DM name/email/etc. in T-AC) — read them FIRST, and never
+    # touch them. Only their domains matter here, to decide what's new.
+    existing_domains = set()
+    if args.master_url:
+        master_sid = sheet_id_from_url(args.master_url)
+        existing_vals = svc.spreadsheets().values().get(
+            spreadsheetId=master_sid, range=f"{TAB}!A2:AC5000").execute().get("values", [])
+        for r in existing_vals:
+            if len(r) > COL_WEBSITE and r[COL_WEBSITE].strip():
+                existing_domains.add(r[COL_WEBSITE].strip().lower())
+        print(f"Existing master: {len(existing_vals)} rows, "
+             f"{len(existing_domains)} with a resolved domain")
+
     print(f"Pulling resolved rows from {len(batch_sids)} batch sheets...")
     all_rows = []
     for sid in batch_sids:
         vals = svc.spreadsheets().values().get(
-            spreadsheetId=sid, range=f"{TAB}!A2:AB5000").execute().get("values", [])
+            spreadsheetId=sid, range=f"{TAB}!A2:AC5000").execute().get("values", [])
         resolved = [r for r in vals if len(r) > COL_WEBSITE and r[COL_WEBSITE].strip()]
         print(f"  {sid}: {len(resolved)} resolved rows")
         all_rows.extend(resolved)
 
-    # de-dupe by domain, in case the same company was ever exported twice
-    seen, deduped = set(), []
+    # de-dupe by domain, in case the same company was ever exported twice —
+    # and, when appending, skip anything the master already has.
+    seen, deduped = set(existing_domains), []
     for r in all_rows:
         dom = r[COL_WEBSITE].strip().lower()
         if dom in seen:
             continue
         seen.add(dom)
         deduped.append(r)
-    if len(deduped) != len(all_rows):
-        print(f"  Deduped {len(all_rows) - len(deduped)} repeat domains")
+    print(f"\n{len(deduped)} new companies to add "
+         f"({len(all_rows) - len(deduped)} already present or duplicate)")
 
-    print(f"\nTotal unique resolved companies: {len(deduped)}")
+    if not deduped and args.master_url:
+        print("Nothing new — master sheet left untouched.")
+        return
 
     if args.master_url:
-        sid = sheet_id_from_url(args.master_url)
-        gid = svc.spreadsheets().get(spreadsheetId=sid).execute()["sheets"][0]["properties"]["sheetId"]
-        svc.spreadsheets().values().clear(spreadsheetId=sid, range=f"{TAB}!A1:AB5000").execute()
-        svc.spreadsheets().values().update(
-            spreadsheetId=sid, range=f"'{TAB}'!A1", valueInputOption="RAW",
-            body={"values": [HEADERS]}).execute()
-        print(f"Cleared and rewriting existing master: https://docs.google.com/spreadsheets/d/{sid}/edit")
+        sid = master_sid
+        next_row = len(existing_vals) + 2
+        print(f"Appending to existing master: https://docs.google.com/spreadsheets/d/{sid}/edit")
     else:
         title = f"Production Houses - MASTER - {date.today().isoformat()}"
         sid, gid = create_master(svc, title, len(deduped))
+        next_row = 2
         print(f"Created: https://docs.google.com/spreadsheets/d/{sid}/edit")
 
     for start in range(0, len(deduped), 500):
         svc.spreadsheets().values().update(
-            spreadsheetId=sid, range=f"'{TAB}'!A{start + 2}", valueInputOption="RAW",
+            spreadsheetId=sid, range=f"'{TAB}'!A{next_row + start}", valueInputOption="RAW",
             body={"values": deduped[start:start + 500]}).execute()
 
-    print(f"\nMaster sheet: {len(deduped)} companies written.")
+    total = (len(existing_domains) if args.master_url else 0) + len(deduped)
+    print(f"\nMaster sheet: +{len(deduped)} companies added, {total} total.")
 
 
 if __name__ == "__main__":

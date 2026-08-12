@@ -31,6 +31,7 @@ Each pipeline is a Claude Code skill with its own `SKILL.md` (authoritative deta
 | `personalized-icebreakers` | Any sheet | Deep-research retarget campaign (LinkedIn + site → icebreaker → body → push) | Any |
 | `nppes-new-clinics` | CMS NPPES bulk files | Newly-registered medical practices (pre-job-ad demand) | All 50 states + DC, filtered at export |
 | `production-house-leads` | Google Maps (Apify) | Commercial video production houses (supply side of the production lane) | LA, NYC, US secondary hubs, Toronto, London, Amsterdam, Berlin |
+| `production-directory-leads` | ProductionHub directory (custom Apify actor) | Commercial video production houses — **the live source for this lane**; the Maps store above is parked | US + Canada metros only (LA, NYC, Austin, Nashville, Chicago, Miami, Atlanta, Toronto) |
 
 Utilities: `casualize-names`, `instantly-autoreply`, `add-webhook`, `local-server`. (`classify-leads` and `scrape-leads` are empty leftover directories — ignore them.)
 
@@ -95,6 +96,18 @@ Because every script is idempotent and skips already-processed rows (see Batch-o
 
 Two traps in that loop: `--limit N` counts **pending** rows, not sheet rows, so on a partially processed sheet it lands wherever the next N unfilled rows are; and idempotence keys off a specific output cell being non-empty, so re-running after a partial failure resumes rather than repeats — to actually regenerate a row you must clear its output cell first.
 
+## The Claude-in-session Judge Pattern (Aug 2026)
+
+A growing class of scripts makes **no LLM API call at all**. Where an earlier script would have called GPT-4.1 or Claude per row, the judgment is split into three steps and the model is *this Claude Code session*:
+
+1. **COLLECT** — a script gathers raw evidence per row (search candidates, profile text, site pages) and writes one JSON file. Purely mechanical: HTTP/Apify/SQLite, plus mechanical prefilters (junk hosts, eligibility gates).
+2. **JUDGE** — Claude reads that file in-session and hand-writes a verdicts JSON.
+3. **APPLY** — a second script validates and writes the verdicts to the sheet or store.
+
+**The apply step never trusts the verdicts file.** A verdict for a row/id absent from the candidates file is refused outright (hallucination guard), values outside the allowed vocabulary are refused, and any mechanical gate the original LLM-output path used is re-run over the hand-written lines — the guard exists against Claude's own mistakes, not only a model's.
+
+Current instances: `exa-website-enrichment/enrich_websites_exa.py` + `enrich_websites_apify.py` (domain resolution), `production-directory-leads/collect_uncertain_for_claude.py` → `apply_claude_classifications.py` (classification), `production-directory-leads/collect_icebreaker_research.py` → `apply_icebreakers.py` (icebreaker copy). Jude's calls, 2026-08-10/11/12 — extend this pattern rather than adding a per-row LLM call when a new judgment step is needed on these lanes.
+
 ## Critical Rules
 
 **Batch-of-10:** Every script MUST write to the Google Sheet after each batch of 10 rows — never batch all then write. This enables crash recovery and idempotent reruns (scripts skip already-processed rows).
@@ -118,6 +131,8 @@ Two traps in that loop: `--limit N` counts **pending** rows, not sheet rows, so 
 **No sending accounts:** Never add sending accounts to Instantly campaigns; Jude configures those manually in the UI.
 
 **Casualization is embedded in every GTM generator:** first names (common nicknames only: William→Will), company names (strip legal suffixes/generic tails), cities (local nicknames: Indianapolis→Indy). Canonical rules live in the `casualize-names` skill; each pipeline applies them at generation time (LLM prompt rules or the shared `NICKNAMES` map). Any NEW outreach generator must include them.
+
+**No sign-off in generated copy** (standing rule, 2026-08-05): never append "Best, Jude" or any sign-off to a generated body or a sequence step. The sending account's signature carries identity. The `production-directory-leads` lane also drops **recipient** nickname casualization for the same reason a sign-off is dropped — a stranger's cold email renaming someone reads badly (Jude, 2026-08-12). Company-name casualization is unaffected everywhere.
 
 **Text-only campaigns:** New Instantly campaigns set `text_only: true` and `first_email_text_only: true` — those flags are what make the send plain text. Personalization values written to leads are plain text with newlines and no markup. Sequence step bodies still carry the thin `<div>{{personalization}}</div>` / `<br />` wrapper Instantly stores them in; that is expected and is not the HTML the rule is about.
 
@@ -186,7 +201,7 @@ Azure OpenAI env vars: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_O
 - `nppes-new-clinics` phases 1-3 need no API key (CMS data is free), only the Google OAuth token for `export_leads.py --to_sheet`. Its campaign track (below) needs `ANYMAILFINDER_API_KEY`, `PURPLE_MAGIC_KEY` (Purple Magic / ConnectorOS — `find_dm_waterfall.py`, `pm_rescue.py`), the Azure OpenAI vars, and `APIFY_API_TOKEN`
 - Google Sheets OAuth: `.claude/token.json` (setup via `.claude/setup_google_auth.py`)
 
-Gitignored and therefore absent on a fresh clone: `.claude/.env`, `.claude/token.json`, `.claude/scripts/` (see below), and `.claude/skills/nppes-new-clinics/data/` (the SQLite store, cached CMS zips, and exports).
+Gitignored and therefore absent on a fresh clone: `.claude/.env`, `.claude/token.json` (+ `.claude/token_*.json`), `.claude/scripts/` (see below), and every skill `data/` directory that holds a SQLite store or working JSON — `nppes-new-clinics/data/`, `healthcare-staffing-enrichment/data/`, `production-house-leads/data/`, `production-directory-leads/data/`. A SQLite-backed skill therefore looks empty on a clone; the store rebuilds by re-running phase 1.
 
 ## API Quirks
 
@@ -289,7 +304,11 @@ Two newer companions are **not yet in the SKILL.md** — docstrings are the refe
 
 ## exa-website-enrichment
 
-Domain resolution with a proof-on-page gate — its `SKILL.md` is authoritative for `enrich_websites_exa.py` (acceptance ladder, rejected-domain classes, ~$0.007/company cost, `EXA_API_KEY`). Run it BEFORE any DM/email enrichment when websites are missing or untrusted: a wrong domain doesn't fail loudly, it emails a real person at the wrong company. Never writes a domain it can't prove; blank beats wrong.
+Domain resolution with a proof-on-page gate. Run it BEFORE any DM/email enrichment when websites are missing or untrusted: a wrong domain doesn't fail loudly, it emails a real person at the wrong company. Never writes a domain it can't prove; blank beats wrong.
+
+⚠️ **The SKILL.md is stale on the core mechanism.** It still describes a mechanical acceptance ladder; that was replaced (2026-08-10, commits `b49b107`/`882ccbb`) by the three-step Claude-in-session judge flow described above — `--apply` collects candidates, Claude judges in-session, `--verdicts FILE --apply` writes. The mechanical parts that survive are the *prefilters* (junk hosts, careers subdomains, parent-chain), not the acceptance decision. Cost/`EXA_API_KEY` details in the SKILL.md are still accurate.
+
+`enrich_websites_apify.py` is a drop-in **alternate collector** (added when Exa credits ran out mid-campaign): same candidates/verdicts shape and the same apply step, but searches with `apify~google-search-scraper` (the actor `find_company_domains.py` already uses) instead of Exa. It deliberately stamps the same `exa_*` statuses — those mean "a resolution attempt happened", not which engine ran — so the two backends skip each other's rows correctly.
 
 The skill also ships `find_dm_exa.py`, which the SKILL.md does **not** cover (its "ends at column L" claim predates it): a last-resort DM **name** finder for companies both Apollo and AMF /decision-maker dead-end on. GPT-4.1 extracts a name+title from Exa results under the CEO→COO→Medical Director ladder; it writes a name only, never an email — complete the row with `amf_person_fill.py`.
 
@@ -321,6 +340,29 @@ Phases are split so each is re-runnable alone — retune copy by re-running phas
 - **Designed to return nothing rather than fake-personalize.** Never-converged rows write an empty cell; a `--static_fallback` flag exists but the default posture is empty, and **rows with no icebreaker are skipped by phase 4 and never sent** — the campaign is a personalization-only experiment. Expect a real miss rate.
 - Phase 4's offer copy is **Jude's template verbatim** (stored at the top of the script, swapped per A/B test). Only `{icp}` and `{roles}` may change; CTA, proof line, and sign-off are fixed.
 - Phases 3 and 4 are subject to the same preview-and-approve gate as any email generation step.
+
+## production-directory-leads
+
+The **live source for the commercial video production lane** (Saad's client brief names ProductionHub as "the main directory"); `production-house-leads`' Google Maps store is parked as a secondary pool, though its 1,134 classified PRODUCTION_HOUSE rows stay usable. SQLite-backed like `nppes-new-clinics` (`data/directory.db`, gitignored), sheets are batches cut from it. `export_batch.py` also checks the Maps store's exported domains, so the two lanes never email the same company.
+
+**`SKILL.md` covers only phases 1-3** (scrape → classify → enrich → export) plus the Cloudflare/geography/thin-profile quirks — read it first. Everything downstream of the batch export was built Aug 11-12 2026 and is **docstring-only**:
+
+| Step | Script | Purpose |
+|------|--------|---------|
+| Consolidate | `consolidate_master.py` | Merge resolved rows from all batch sheets into one master. **APPEND-ONLY against an existing master** — the original clear-and-rewrite version wiped 276 of 285 found emails (recovered from Drive revision history) because DM enrichment ran on the master, not the batch sheets. Reads the master first, never clears it |
+| DM (lane 1) | `find_dm_pm.py` | **Purple Magic is PRIMARY for this vertical** (Jude, 2026-08-11 — reversed vs healthcare). `/decision-makers {domain}` → positive owner-title gate BEFORE `/find`. Writes status to **AC**, never AB |
+| DM (lane 2) | `apollo_dm_waterfall_production.py` | Apollo/AMF fallback over PM's misses — a clone of `apollo-dm-waterfall`, retargeted `RANK_SYSTEM`. Status column **AB**. A PM miss (blank W, blank AB) is picked up automatically; a PM find is skipped |
+| Icebreaker 0-1 | `scrape_dm_linkedin.py` (→AD), `scrape_company_facts.py` (→AE) | Clones of `personalized-icebreakers` phases 0-1 with the GPT abstraction step **deleted** — raw per-page text, not summaries |
+| Icebreaker 2-3 | `collect_icebreaker_research.py` → *Claude judges* → `apply_icebreakers.py` (→AF icebreaker, AG fact_type) | Claude-in-session judge (above). No LLM API anywhere in this lane (Jude, 2026-08-12) |
+| Copy | `generate_production_body.py` (→AH) | Saad's fixed Email 1 copy + greeting + icebreaker. Pure string assembly, no `{icp}`/`{roles}` slots to extract |
+| Push | `push_production_retarget.py` | DRAFT campaign, Saad's 4-email framework (Day 0/2/3/4). Steps 2-4 carry no per-lead body — generic follow-up using `{{firstName}}` |
+| Sync | `sync_revised_personalization.py` | One-off: PATCH already-pushed leads' personalization after a copy revision (safe only while the campaign is DRAFT) |
+
+DM target for this vertical (Jude, 2026-08-11, **hypothesis — no campaign data yet**): Owner / Founder / CEO / President / Managing Director / Managing Partner / Principal, nobody else. Both lanes share the same `OWNER_RE`, reused from `healthcare-staffing-enrichment/find_ceo_pm_demand.py`.
+
+Two conventions differ from the rest of the repo and are deliberate: **AC is the PM status column** (elsewhere AB carries the single status), and **icebreaker-less rows are still sent** — Jude reversed `personalized-icebreakers`' personalization-only posture on 2026-08-12, so 129 of 312 leads go out on Saad's plain copy alone rather than being dropped.
+
+Cloudflare, geography, and profile-thinness gotchas all live in the SKILL.md — the short version: run the scraper with `--local` (cloud runs are CF-blocked), ProductionHub is US+Canada only, and free-tier profiles carry almost no contact data, so domains come from `exa-website-enrichment` on the exported sheet rather than from profile visits.
 
 ## nppes-new-clinics
 

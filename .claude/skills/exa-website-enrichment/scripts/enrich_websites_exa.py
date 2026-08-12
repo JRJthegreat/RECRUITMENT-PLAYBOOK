@@ -159,6 +159,11 @@ JUNK_HOSTS = (
     "vimeo.com", "behance.net", "peerspace.com", "giggster.com",
     "clutch.co", "sortlist.com", "expertise.com", "upcity.com",
     "designrush.com", "themanifest.com", "productionbeast.com",
+    # Local-listing aggregators and content-farm blogs — surfaced by Google
+    # search (Apify collector) rather than Exa; caught live on the first
+    # Apify test batch (local.yahoo.com, a Yahoo Local business listing;
+    # feedspot.com, an unrelated podcast-roundup blog).
+    "local.yahoo.com", "yahoo.com", "feedspot.com",
 )
 
 # Secretary-of-State registry mirrors publish one page per registered entity

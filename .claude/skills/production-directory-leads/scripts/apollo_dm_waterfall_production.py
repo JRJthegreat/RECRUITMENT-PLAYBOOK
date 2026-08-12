@@ -86,7 +86,7 @@ AZURE_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
 AZURE_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT_FAST", "gpt-4.1")
 
 BATCH_SIZE = 10
-CHUNK_WORKERS = 5
+CHUNK_WORKERS = 20
 LARGE_ORG_MIN = 500
 
 # --skip_email: stop at the DM's identity and never call AnyMail Finder.

@@ -5,6 +5,7 @@
 .claude/.env
 .claude/.env.*
 .claude/token.json
+.claude/token_*.json
 .claude/credentials.json
 *.pem
 *.key
